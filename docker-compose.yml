@@ -1,0 +1,10 @@
+services:
+  lobby:
+    image: node:12-buster
+    working_dir: /app
+    volumes:
+      - ./apps/lobby:/app
+    ports:
+      - "8001:8001"
+    command: >
+      bash -lc "npm install && node index.js --port 8001 --public"

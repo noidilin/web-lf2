@@ -8,11 +8,11 @@ requirejs.config({
 	{
 	  'core/sprite-dom':
 		{
-		  baseUrl: '../../LF2_19/'
+		  baseUrl: '../../../assets/'
 		},
 	  'core/sprite-canvas':
 		{
-		  baseUrl: '../../LF2_19/'
+		  baseUrl: '../../../assets/'
 		}
 	}
 })
@@ -22,15 +22,15 @@ requirejs([
   'LF/sprite-select',
   'LF/background',
   'core/css!LF/application.css',
-  '../LF2_19/bg/hkc/bg',
-  '../LF2_19/bg/lf/bg',
-  '../LF2_19/bg/sp/bg',
-  '../LF2_19/bg/gw/bg',
-  '../LF2_19/bg/qi/bg',
-  '../LF2_19/bg/ft/bg',
-  '../LF2_19/bg/cuhk/bg',
-  '../LF2_19/bg/thv/bg',
-  '../LF2_19/bg/template/bg'
+  '../../assets/bg/hkc/bg',
+  '../../assets/bg/lf/bg',
+  '../../assets/bg/sp/bg',
+  '../../assets/bg/gw/bg',
+  '../../assets/bg/qi/bg',
+  '../../assets/bg/ft/bg',
+  '../../assets/bg/cuhk/bg',
+  '../../assets/bg/thv/bg',
+  '../../assets/bg/template/bg'
 ], function (global, Fsprite, background) {
   for (let i = 4; i < arguments.length; i++) {
     var LFwindow = document.getElementById('template').cloneNode(true)

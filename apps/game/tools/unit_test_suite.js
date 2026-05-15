@@ -1,6 +1,6 @@
 (function (){
 
-var flf_config = {"root":"../","package":"../LF2_19"};
+var flf_config = {"root":"../","package":"../../assets"};
 requirejs.config(
 {
 	baseUrl: flf_config.root,
