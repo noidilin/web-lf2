@@ -43,10 +43,15 @@ const planSchema = z.object({
 // Raise this if your backlog is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10;
 
-// Use GPT-5.5 through pi. The pi CLI accepts a thinking-level suffix on the
-// model name (`model:level`), so Sandcastle only needs model string changes.
-const IMPLEMENTATION_AGENT = sandcastle.pi("gpt-5.5:low");
-const GENERAL_TASK_AGENT = sandcastle.pi("gpt-5.5:medium");
+// Use GLM-5.1 (ZAI) through pi. The pi CLI accepts a thinking-level suffix
+// on the model name (`model:level`), so Sandcastle only needs model string
+// changes. ZAI_API_KEY is passed through pi's env option.
+const IMPLEMENTATION_AGENT = sandcastle.pi("glm-5.1:low", {
+  env: { ZAI_API_KEY: process.env.ZAI_API_KEY! },
+});
+const GENERAL_TASK_AGENT = sandcastle.pi("glm-5.1:medium", {
+  env: { ZAI_API_KEY: process.env.ZAI_API_KEY! },
+});
 
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
