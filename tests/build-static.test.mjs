@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,7 +11,7 @@ test('buildStatic creates the deployable legacy game artifact', async () => {
   try {
     await buildStatic({ outDir });
 
-    for (const requiredPath of [
+    const requiredArtifactPaths = [
       'game/game.html',
       'game/game.js',
       'LF/loader.js',
@@ -20,7 +20,9 @@ test('buildStatic creates the deployable legacy game artifact', async () => {
       'LF2_19/manifest.js',
       'LF2_19/data/data.js',
       'LF2_19/sprite/icon.png',
-    ]) {
+    ];
+
+    for (const requiredPath of requiredArtifactPaths) {
       assert.ok(
         await fileExists(path.join(outDir, requiredPath)),
         `expected ${requiredPath} in static artifact`,
@@ -36,7 +38,6 @@ test('buildStatic creates the deployable legacy game artifact', async () => {
 
 async function fileExists(filePath) {
   try {
-    const { access } = await import('node:fs/promises');
     await access(filePath);
     return true;
   } catch {
@@ -45,6 +46,5 @@ async function fileExists(filePath) {
 }
 
 async function readText(filePath) {
-  const { readFile } = await import('node:fs/promises');
   return readFile(filePath, 'utf8');
 }

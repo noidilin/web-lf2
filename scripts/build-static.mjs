@@ -25,9 +25,12 @@ const COPY_ENTRIES = [
   ['assets', 'LF2_19'],
 ];
 
-export async function buildStatic(options = {}) {
-  const root = options.root ? path.resolve(options.root) : repoRoot;
-  const outDir = options.outDir ? path.resolve(options.outDir) : path.join(root, 'dist/static');
+const GAME_CONFIG_PATTERN = /<pre id='flf-config' style='display:none'>\s*\{[^<]+\}\s*<\/pre>/;
+const DEPLOYED_GAME_CONFIG = `<pre id='flf-config' style='display:none'>\n{"root":"../","package":"LF2_19/"}\n</pre>`;
+
+export async function buildStatic({ root: inputRoot, outDir: inputOutDir } = {}) {
+  const root = inputRoot ? path.resolve(inputRoot) : repoRoot;
+  const outDir = inputOutDir ? path.resolve(inputOutDir) : path.join(root, 'dist/static');
 
   await assertRequiredInputs(root);
   await rm(outDir, { recursive: true, force: true });
@@ -64,10 +67,7 @@ async function assertRequiredInputs(root) {
 
 async function rewriteGameConfig(gameHtmlPath) {
   const original = await readFile(gameHtmlPath, 'utf8');
-  const rewritten = original.replace(
-    /<pre id='flf-config' style='display:none'>\s*\{[^<]+\}\s*<\/pre>/,
-    `<pre id='flf-config' style='display:none'>\n{"root":"../","package":"LF2_19/"}\n</pre>`,
-  );
+  const rewritten = original.replace(GAME_CONFIG_PATTERN, DEPLOYED_GAME_CONFIG);
 
   if (rewritten === original) {
     throw new Error(`Cannot update deployed package path in ${gameHtmlPath}`);
