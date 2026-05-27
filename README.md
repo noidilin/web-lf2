@@ -48,6 +48,18 @@ Open:
 http://localhost:8080/game/game.html
 ```
 
+## Run the Playwright smoke test
+
+Build the artifact and run the browser smoke baseline:
+
+```sh
+node scripts/build-static.mjs
+npm run test:e2e
+```
+
+The test loads the built game page, verifies the root UI and canvas elements appear,
+checks for fatal console errors, and saves a screenshot artifact to `tests/screenshots/`.
+
 ## Run the lobby server
 
 Use Docker Compose from the repository root:
