@@ -43,24 +43,21 @@ const planSchema = z.object({
 // Raise this if your backlog is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10;
 
-const PLANNER_MODEL = "openai-codex/gpt-5.5:medium";
-const IMPLEMENT_MODEL = "openai-codex/gpt-5.5:low";
-const REVIEW_MODEL = "openai-codex/gpt-5.5:medium";
-const MERGE_MODEL = "openai-codex/gpt-5.5:medium";
+// Use GPT-5.5 through pi. The pi CLI accepts a thinking-level suffix on the
+// model name (`model:level`), so Sandcastle only needs model string changes.
+const IMPLEMENTATION_AGENT = sandcastle.pi("gpt-5.5:low");
+const GENERAL_TASK_AGENT = sandcastle.pi("gpt-5.5:medium");
 
 // Hooks run inside the sandbox before the agent starts each iteration.
-// This repo uses pnpm, so install from the lockfile rather than generating npm
-// metadata or copying pnpm's symlinked node_modules layout.
+// npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
-  sandbox: {
-    onSandboxReady: [
-      { command: "corepack enable" },
-      { command: "corepack pnpm install --frozen-lockfile" },
-    ],
-  },
+  sandbox: { onSandboxReady: [{ command: "npm install" }] },
 };
 
-const copyToWorktree: string[] = [];
+// Copy node_modules from the host into the worktree before each sandbox
+// starts. Avoids a full npm install from scratch; the hook above handles
+// platform-specific binaries and any packages added since the last copy.
+const copyToWorktree = ["node_modules"];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -72,7 +69,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 1: Plan
   //
-  // The planning agent (opus, for deeper reasoning) reads the open issue list,
+  // The planning agent reads the open issue list,
   // builds a dependency graph, and selects the issues that can be worked in
   // parallel right now (i.e., no blocking dependencies on other open issues).
   //
@@ -85,8 +82,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // One iteration is enough: the planner just needs to read and reason,
     // not write code. (Structured output requires maxIterations: 1.)
     maxIterations: 1,
-    // Planning benefits from stronger dependency analysis than implementation.
-    agent: sandcastle.pi(PLANNER_MODEL),
+    // Medium thinking for planning and other non-implementation tasks.
+    agent: GENERAL_TASK_AGENT,
     promptFile: "./.sandcastle/plan-prompt.md",
     // Extract and validate the <plan> JSON into a typed object. Throws
     // StructuredOutputError if the tag is missing, the JSON is malformed, or
@@ -133,7 +130,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const implement = await sandbox.run({
           name: "implementer",
           maxIterations: 100,
-          agent: sandcastle.pi(IMPLEMENT_MODEL),
+          agent: IMPLEMENTATION_AGENT,
           promptFile: "./.sandcastle/implement-prompt.md",
           promptArgs: {
             TASK_ID: issue.id,
@@ -147,7 +144,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           const review = await sandbox.run({
             name: "reviewer",
             maxIterations: 1,
-            agent: sandcastle.pi(REVIEW_MODEL),
+            agent: GENERAL_TASK_AGENT,
             promptFile: "./.sandcastle/review-prompt.md",
             promptArgs: {
               BRANCH: issue.branch,
@@ -218,7 +215,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     sandbox: docker(),
     name: "merger",
     maxIterations: 1,
-    agent: sandcastle.pi(MERGE_MODEL),
+    agent: GENERAL_TASK_AGENT,
     promptFile: "./.sandcastle/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.

@@ -35,7 +35,7 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run the relevant pnpm checks to ensure the tests pass. Prefer existing scripts such as `corepack pnpm run build:static`, `corepack pnpm run check:static`, and `corepack pnpm run test:e2e` when they apply. If a check script does not exist, do not invent it; document what you did run.
+Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
 
 # COMMIT
 
