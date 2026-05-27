@@ -1,0 +1,17 @@
+{
+  "name": "web-lf2",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "sandcastle": "tsx .sandcastle/main.ts",
+    "sandcastle:build-image": "sandcastle docker build-image",
+    "build:static": "node scripts/build-static.mjs",
+    "check:static": "node scripts/check-static.mjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.6.3",
+    "tsx": "^4.22.3"
+  }
+}
