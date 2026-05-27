@@ -23,6 +23,7 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { execFileSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -50,6 +51,29 @@ const hooks = {
 };
 
 const copyToWorktree: string[] = [];
+
+function readyForAgentIssueCount(): number {
+  const output = execFileSync(
+    "gh",
+    [
+      "issue",
+      "list",
+      "--state",
+      "open",
+      "--label",
+      "ready-for-agent",
+      "--limit",
+      "100",
+      "--json",
+      "number",
+      "--jq",
+      "length",
+    ],
+    { encoding: "utf8" },
+  );
+
+  return Number.parseInt(output.trim(), 10);
+}
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -101,9 +125,16 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     });
 
     if (!implement.commits.length) {
-      // No commits means the backlog is empty or every remaining issue is
-      // blocked — there is nothing left to implement or review, so stop.
-      console.log("Implementation agent made no commits. Stopping.");
+      const remainingReadyIssues = readyForAgentIssueCount();
+
+      if (remainingReadyIssues > 0) {
+        throw new Error(
+          `Implementation agent made no commits while ${remainingReadyIssues} ready-for-agent issue(s) remain. ` +
+            "Treating this as an agent failure instead of silently stopping; inspect the implementer log above.",
+        );
+      }
+
+      console.log("No ready-for-agent issues remain. Stopping.");
       break;
     }
 

@@ -23,6 +23,8 @@ Work on issues in this order:
 
 Pick the highest-priority open issue that is labelled `ready-for-agent` and is not blocked by another open issue.
 
+If the Open issues section contains any actionable `ready-for-agent` issue, you MUST NOT immediately output `<promise>COMPLETE</promise>`. You must either commit a completed fix for one issue, or comment on a specific issue explaining why it is blocked and then try the next unblocked issue.
+
 Do not work on issues labelled `ready-for-human`. Respect each issue's `Blocked by` section before starting work.
 
 If the selected issue depends on unmerged Sandcastle work or a branch that is not part of the current sandbox history, skip it and choose another unblocked issue. If every remaining issue is blocked this way, comment on the blocked issue and output `<promise>COMPLETE</promise>`.
@@ -50,6 +52,6 @@ If the selected issue depends on unmerged Sandcastle work or a branch that is no
 
 # Done
 
-When all actionable issues are complete (or you are blocked on all remaining ones), output the completion signal:
+Only after you have checked every listed `ready-for-agent` issue and found no actionable work remaining, output the completion signal:
 
 <promise>COMPLETE</promise>
