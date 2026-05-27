@@ -25,6 +25,8 @@ Pick the highest-priority open issue that is labelled `ready-for-agent` and is n
 
 Do not work on issues labelled `ready-for-human`. Respect each issue's `Blocked by` section before starting work.
 
+If the selected issue depends on unmerged Sandcastle work or a branch that is not part of the current sandbox history, skip it and choose another unblocked issue. If every remaining issue is blocked this way, comment on the blocked issue and output `<promise>COMPLETE</promise>`.
+
 ## Workflow
 
 1. **Explore** — read the issue carefully. Pull in the parent PRD if referenced. Read the relevant source files and tests before writing any code.

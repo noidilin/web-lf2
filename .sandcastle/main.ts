@@ -29,11 +29,12 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 // ---------------------------------------------------------------------------
 
 // Maximum number of implement→review cycles to run before stopping.
-// Keep this at 1 while the legacy baseline is being stabilized so each run is
-// easy to inspect before continuing.
-const MAX_ITERATIONS = 1;
+// Keep this modest while the legacy baseline is being stabilized so each run is
+// still practical to inspect before continuing.
+const MAX_ITERATIONS = 3;
 
-const PI_MODEL = "openai-codex/gpt-5.5:medium";
+const IMPLEMENT_MODEL = "openai-codex/gpt-5.5:low";
+const REVIEW_MODEL = "openai-codex/gpt-5.5:medium";
 
 // Hooks run inside the sandbox before the agent starts each iteration.
 // This repo uses pnpm on the host, so the sandbox should install from the same
@@ -95,7 +96,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const implement = await sandbox.run({
       name: "implementer",
       maxIterations: 1,
-      agent: sandcastle.pi(PI_MODEL),
+      agent: sandcastle.pi(IMPLEMENT_MODEL),
       promptFile: "./.sandcastle/implement-prompt.md",
     });
 
@@ -119,7 +120,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
-      agent: sandcastle.pi(PI_MODEL),
+      agent: sandcastle.pi(REVIEW_MODEL),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: {
         BRANCH: branch,
