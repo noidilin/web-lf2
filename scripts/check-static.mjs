@@ -23,9 +23,19 @@ const REQUIRED_ARTIFACT_PATHS = [
 ];
 
 const EXPECTED_PACKAGE = 'LF2_19/';
+const MAX_SCANNED_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const GAME_CONFIG_PATTERN = /<pre id=['"]flf-config['"] style=['"]display:none['"]>\s*(\{[^<]+\})\s*<\/pre>/;
-const HTTP_URL_PATTERN = /http:\/\/[^\s'"<>)]+/g;
-const PROTOCOL_RELATIVE_URL_PATTERN = /(?<!:)\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}[^\s'"<>)]+/g;
+const EXTERNAL_URL_PATTERNS = [
+  /http:\/\/[^\s'"<>)]+/g,
+  /(?<!:)\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}[^\s'"<>)]+/g,
+];
+const SOURCE_PATH_MAPPINGS = [
+  ['game/', 'apps/game/game/'],
+  ['LF/', 'apps/game/LF/'],
+  ['core/', 'apps/game/core/'],
+  ['third_party/', 'apps/game/third_party/'],
+  ['LF2_19/', 'assets/'],
+];
 
 export async function checkStatic({ artifactDir: inputArtifactDir } = {}) {
   const artifactDir = inputArtifactDir
@@ -68,7 +78,8 @@ async function assertGameConfig(artifactDir) {
   try {
     config = JSON.parse(match[1]);
   } catch (error) {
-    throw new Error(`Static artifact is invalid; flf-config is not valid JSON: ${error.message}`);
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Static artifact is invalid; flf-config is not valid JSON: ${reason}`);
   }
 
   if (config.package !== EXPECTED_PACKAGE) {
@@ -83,15 +94,12 @@ async function assertNoUnexpectedExternalUrls(artifactDir) {
   for await (const filePath of walkFiles(artifactDir)) {
     const relativePath = path.relative(artifactDir, filePath).split(path.sep).join('/');
     const content = await readFile(filePath, 'utf8');
-    const matches = [
-      ...content.matchAll(HTTP_URL_PATTERN),
-      ...content.matchAll(PROTOCOL_RELATIVE_URL_PATTERN),
-    ];
-
+    const externalUrls = collectExternalUrls(content);
     const allowedReferences = await legacyReferencesFor(relativePath);
-    for (const match of matches) {
-      if (!allowedReferences.has(match[0])) {
-        findings.push(`${relativePath}: ${match[0]}`);
+
+    for (const externalUrl of externalUrls) {
+      if (!allowedReferences.has(externalUrl)) {
+        findings.push(`${relativePath}: ${externalUrl}`);
       }
     }
   }
@@ -109,32 +117,24 @@ async function legacyReferencesFor(relativePath) {
 
   try {
     const content = await readFile(path.join(repoRoot, sourcePath), 'utf8');
-    return new Set([
-      ...content.matchAll(HTTP_URL_PATTERN),
-      ...content.matchAll(PROTOCOL_RELATIVE_URL_PATTERN),
-    ].map((match) => match[0]));
+    return new Set(collectExternalUrls(content));
   } catch {
     return new Set();
   }
 }
 
 function sourcePathForArtifactPath(relativePath) {
-  if (relativePath.startsWith('game/')) {
-    return `apps/game/${relativePath}`;
+  for (const [artifactPrefix, sourcePrefix] of SOURCE_PATH_MAPPINGS) {
+    if (relativePath.startsWith(artifactPrefix)) {
+      return `${sourcePrefix}${relativePath.slice(artifactPrefix.length)}`;
+    }
   }
-  if (relativePath.startsWith('LF/')) {
-    return `apps/game/${relativePath}`;
-  }
-  if (relativePath.startsWith('core/')) {
-    return `apps/game/${relativePath}`;
-  }
-  if (relativePath.startsWith('third_party/')) {
-    return `apps/game/${relativePath}`;
-  }
-  if (relativePath.startsWith('LF2_19/')) {
-    return `assets/${relativePath.slice('LF2_19/'.length)}`;
-  }
+
   return undefined;
+}
+
+function collectExternalUrls(content) {
+  return EXTERNAL_URL_PATTERNS.flatMap((pattern) => [...content.matchAll(pattern)].map((match) => match[0]));
 }
 
 async function* walkFiles(dir) {
@@ -145,7 +145,7 @@ async function* walkFiles(dir) {
       yield* walkFiles(entryPath);
     } else if (entry.isFile()) {
       const entryStat = await stat(entryPath);
-      if (entryStat.size <= 10 * 1024 * 1024) {
+      if (entryStat.size <= MAX_SCANNED_FILE_SIZE_BYTES) {
         yield entryPath;
       }
     }
