@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.6.3",
-    "tsx": "^4.22.3"
+    "tsx": "^4.22.3",
+    "zod": "^4.4.3"
   }
 }

@@ -24,8 +24,10 @@ ARG AGENT_GID=1000
 # Rename the base image's "node" user to "agent" and align UID/GID.
 RUN groupmod -o -g $AGENT_GID node && usermod -o -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
 
-# Install pi coding agent (run as root before USER agent)
-RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+# Install pi coding agent and pnpm package manager (run as root before USER agent)
+RUN npm install -g @mariozechner/pi-coding-agent \
+  && corepack enable \
+  && corepack prepare pnpm@10.33.2 --activate
 
 USER ${AGENT_UID}:${AGENT_GID}
 

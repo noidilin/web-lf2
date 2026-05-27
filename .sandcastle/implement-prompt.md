@@ -1,57 +1,62 @@
-# Context
+# TASK
 
-## Open issues
+Fix issue {{TASK_ID}}: {{ISSUE_TITLE}}
 
-!`gh issue list --state open --label ready-for-agent --limit 100 --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`
+Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that in too.
 
-## Recent RALPH commits (last 10)
+Only work on the issue specified.
 
-!`git log --oneline --grep="RALPH" -10`
+Work on branch {{BRANCH}}. Make commits and run tests.
 
-# Task
+# CONTEXT
 
-You are RALPH — an autonomous coding agent working through issues one at a time.
+Here are the last 10 commits:
 
-## Priority order
+<recent-commits>
 
-Work on issues in this order:
+!`git log -n 10 --format="%H%n%ad%n%B---" --date=short`
 
-1. **Bug fixes** — broken behaviour affecting users
-2. **Tracer bullets** — thin end-to-end slices that prove an approach works
-3. **Polish** — improving existing functionality (error messages, UX, docs)
-4. **Refactors** — internal cleanups with no user-visible change
+</recent-commits>
 
-Pick the highest-priority open issue that is labelled `ready-for-agent` and is not blocked by another open issue.
+# EXPLORATION
 
-If the Open issues section contains any actionable `ready-for-agent` issue, you MUST NOT immediately output `<promise>COMPLETE</promise>`. You must either commit a completed fix for one issue, or comment on a specific issue explaining why it is blocked and then try the next unblocked issue.
+Explore the repo and fill your context window with relevant information that will allow you to complete the task.
 
-Do not work on issues labelled `ready-for-human`. Respect each issue's `Blocked by` section before starting work.
+Pay extra attention to test files that touch the relevant parts of the code.
 
-If the selected issue depends on unmerged Sandcastle work or a branch that is not part of the current sandbox history, skip it and choose another unblocked issue. If every remaining issue is blocked this way, comment on the blocked issue and output `<promise>COMPLETE</promise>`.
+# EXECUTION
 
-## Workflow
+If applicable, use RGR to complete the task.
 
-1. **Explore** — read the issue carefully. Pull in the parent PRD if referenced. Read the relevant source files and tests before writing any code.
-2. **Plan** — decide what to change and why. Keep the change as small as possible.
-3. **Execute** — use RGR (Red → Green → Repeat → Refactor): write a failing test first, then write the implementation to pass it.
-4. **Verify** — run the relevant pnpm checks before committing. Prefer `pnpm run build:static`, `pnpm run check:static`, and `pnpm run test:e2e` when they apply to the issue. If a check script does not exist yet, do not invent it; document what you did run.
-5. **Commit** — make a single git commit. The message MUST:
-   - Start with `RALPH:` prefix
-   - Include the task completed and any PRD reference
-   - List key decisions made
-   - List files changed
-   - Note any blockers for the next iteration
-6. **Close** — close the issue with `gh issue close <ID> --comment "Completed by Sandcastle"` explaining what was done.
+1. RED: write one test
+2. GREEN: write the implementation to pass that test
+3. REPEAT until done
+4. REFACTOR the code
 
-## Rules
+# FEEDBACK LOOPS
 
-- Work on **one issue per iteration**. Do not attempt multiple issues in a single iteration.
-- Do not close an issue until you have committed the fix and verified tests pass.
-- Do not leave commented-out code or TODO comments in committed code.
-- If you are blocked (missing context, failing tests you cannot fix, external dependency), leave a comment on the issue and move on — do not close it.
+Before committing, run the relevant pnpm checks to ensure the tests pass. Prefer existing scripts such as `corepack pnpm run build:static`, `corepack pnpm run check:static`, and `corepack pnpm run test:e2e` when they apply. If a check script does not exist, do not invent it; document what you did run.
 
-# Done
+# COMMIT
 
-Only after you have checked every listed `ready-for-agent` issue and found no actionable work remaining, output the completion signal:
+Make a git commit. The commit message must:
 
-<promise>COMPLETE</promise>
+1. Start with `RALPH:` prefix
+2. Include task completed + PRD reference
+3. Key decisions made
+4. Files changed
+5. Blockers or notes for next iteration
+
+Keep it concise.
+
+# THE ISSUE
+
+If the task is not complete, leave a comment on the issue with what was done.
+
+Do not close the issue - this will be done later.
+
+Once complete, output <promise>COMPLETE</promise>.
+
+# FINAL RULES
+
+ONLY WORK ON A SINGLE TASK.
