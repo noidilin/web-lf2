@@ -1,0 +1,16 @@
+{
+  "name": "web-lf2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:static": "node scripts/build-static.mjs",
+    "check:static": "node scripts/check-static.mjs",
+    "typecheck": "npm run check:static",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:lobby": "docker compose up -d lobby && node --test tests/lobby-contract.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}
