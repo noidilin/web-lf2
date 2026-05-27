@@ -19,6 +19,16 @@ dist/static/
   LF2_19/
 ```
 
+Validate the generated artifact with:
+
+```sh
+node scripts/check-static.mjs
+# or
+npm run check:static
+```
+
+The check fails when required deployed paths are missing, when `game/game.html` does not point at `LF2_19/`, or when new insecure `http://` or protocol-relative external URL references are introduced beyond the preserved legacy baseline.
+
 Serve the generated artifact locally with:
 
 ```sh

@@ -25,6 +25,16 @@ node scripts/build-static.mjs
 
 This creates `dist/static` with the legacy game client, `LF`, `core`, `third_party`, and the deployed `LF2_19` asset package.
 
+Validate the generated artifact before using it as a baseline:
+
+```sh
+node scripts/check-static.mjs
+# or
+npm run check:static
+```
+
+The check verifies required deployed paths, the `LF2_19/` game config package, and unexpected insecure or protocol-relative external URL references.
+
 Serve the artifact locally:
 
 ```sh
@@ -62,5 +72,5 @@ http://localhost:8001
 
 - Do not install lobby dependencies with the host Node version.
 - The lobby is intentionally run in `node:12-buster` to preserve legacy behavior.
-- There is no root `package.json` or npm workspace yet.
+- Root npm scripts wrap the static build/check and lobby smoke workflow.
 - Static assets are served from `/assets` when running the root Python HTTP server.
