@@ -15,18 +15,27 @@ infra/        Future infrastructure files
 dist/         Generated outputs / placeholders
 ```
 
-## Run the game
+## Build and run the static game artifact
 
-From the repository root:
+From the repository root, regenerate the deterministic Phase 1 artifact:
 
 ```sh
+node scripts/build-static.mjs
+```
+
+This creates `dist/static` with the legacy game client, `LF`, `core`, `third_party`, and the deployed `LF2_19` asset package.
+
+Serve the artifact locally:
+
+```sh
+cd dist/static
 python3 -m http.server 8080
 ```
 
 Open:
 
 ```txt
-http://localhost:8080/apps/game/game/game.html
+http://localhost:8080/game/game.html
 ```
 
 ## Run the lobby server
