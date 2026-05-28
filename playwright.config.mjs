@@ -11,10 +11,18 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   outputDir: 'tests/results',
-  webServer: {
-    command: 'node scripts/serve-static.mjs',
-    port: 8765,
-    reuseExistingServer: true,
-    timeout: 10_000,
-  },
+  webServer: [
+    {
+      command: 'node scripts/serve-static.mjs',
+      port: 8765,
+      reuseExistingServer: true,
+      timeout: 10_000,
+    },
+    {
+      command: 'docker compose up lobby',
+      port: 8001,
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+  ],
 });

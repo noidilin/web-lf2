@@ -18,6 +18,14 @@ Run the endpoint contract smoke checks against the Dockerized lobby:
 pnpm run test:lobby
 ```
 
+Run the browser baseline guard before modernization work:
+
+```sh
+pnpm run test:e2e
+```
+
+This builds the static game artifact, starts the Dockerized lobby, opens the game's network menu through Playwright, and verifies the game can request the local `/protocol` endpoint without changing the protocol shape.
+
 To target a non-default lobby URL:
 
 ```sh
