@@ -11,3 +11,14 @@ Use the default five-label triage vocabulary. See `docs/agents/triage-labels.md`
 ### Domain docs
 
 Use a single-context layout with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## Reference
+
+- project
+  - architecture: `./docs/architecture.md`
+  - progress: `./docs/progress.md`
+  - phase: `./docs/phase/`
+- terragrunt pattern reference: `/Users/noid/hub/dev/portfolio/devops/labs/02-static-site`
+- terraform and IAM policy:
+  - `/Users/noid/hub/dev/portfolio/devops/docs/IAMIC-permission-for-lab.md`
+  - `/Users/noid/hub/dev/portfolio/devops/docs/permission-set-policies`

@@ -6,5 +6,13 @@ playwright-report/
 tests/results/
 tests/screenshots/
 
+# terraform / terragrunt
+**/.terraform/
+**/.terragrunt-cache/
+**/.terragrunt-stack/
+*.tfplan
+*.tfstate
+*.tfstate.backup
+
 # ai
-docs/references-workflow
+docs/ref-agentic
