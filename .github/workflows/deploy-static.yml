@@ -1,0 +1,102 @@
+name: Deploy Static Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - 'infra/catalog/modules/static-site/**'
+      - 'infra/catalog/units/static-site/**'
+      - 'infra/live/dev/terragrunt.stack.hcl'
+      - 'infra/live/root.hcl'
+      - 'tests/**'
+      - '.github/workflows/deploy-static.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_VERSION: "1.15.*"
+  TG_VERSION: "0.95.0"
+  AWS_REGION: ap-northeast-1
+  NODE_VERSION: "22"
+
+jobs:
+  deploy-static:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build static artifact
+        run: npm run build:static
+
+      - name: Check static artifact
+        run: npm run check:static
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-dev-github-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup Terragrunt
+        uses: gruntwork-io/terragrunt-action@v2
+        with:
+          terragrunt_version: ${{ env.TG_VERSION }}
+
+      - name: Terragrunt apply
+        working-directory: infra/live/dev
+        run: terragrunt stack run apply --non-interactive --tf-forward-stdout
+
+      - name: Get deployment outputs
+        id: outputs
+        working-directory: infra/live/dev
+        run: |
+          BUCKET=$(teragrunt stack run output -raw bucket_name --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          DIST_ID=$(teragrunt stack run output -raw cloudfront_distribution_id --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          GAME_URL=$(teragrunt stack run output -raw game_url --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
+          echo "game_url=$GAME_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Sync static artifact to S3
+        run: |
+          aws s3 sync dist/static/ "s3://${{ steps.outputs.outputs.bucket_name }}/" \
+            --delete \
+            --cache-control "max-age=86400"
+
+      - name: Invalidate CloudFront cache
+        if: steps.outputs.outputs.distribution_id != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.outputs.outputs.distribution_id }}" \
+            --paths "/*"
+
+      - name: Run deployed smoke test
+        if: steps.outputs.outputs.game_url != ''
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.outputs.outputs.game_url }}
+        run: npx playwright test --config playwright.deployed.config.mjs
