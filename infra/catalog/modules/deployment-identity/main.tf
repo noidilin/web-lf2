@@ -95,6 +95,14 @@ resource "aws_iam_policy" "github_plan" {
       {
         Effect = "Allow"
         Action = [
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*/terraform.tfstate.tflock"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:DeleteItem"
