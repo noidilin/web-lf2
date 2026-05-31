@@ -119,7 +119,7 @@ This is the first GitHub Actions integration for the account.
 | Role | Name | Trust Condition | Purpose |
 |---|---|---|---|
 | Plan | `devops-web-lf2-{env}-github-plan` | `repo:noidilin/web-lf2:pull_request` | `terraform plan`, read state |
-| Apply | `devops-web-lf2-{env}-github-apply` | `repo:noidilin/web-lf2:ref:refs/heads/main` | `terraform apply`, S3 sync, ECR push, ECS deploy |
+| Apply | `devops-web-lf2-{env}-github-apply` | `repo:noidilin/web-lf2:environment:{env}` | `terraform apply`, S3 sync, ECR push, ECS deploy |
 
 Create one plan/apply pair per environment (`dev`, `prod`) so each environment can have independent permissions and state access.
 
