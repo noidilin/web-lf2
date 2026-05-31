@@ -66,9 +66,17 @@ jobs:
         id: outputs
         working-directory: infra/live/dev
         run: |
-          BUCKET=$(terragrunt stack run output -raw bucket_name --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include 2>/dev/null || echo "")
-          DIST_ID=$(terragrunt stack run output -raw cloudfront_distribution_id --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include 2>/dev/null || echo "")
-          GAME_URL=$(terragrunt stack run output -raw game_url --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include 2>/dev/null || echo "")
+          set -euo pipefail
+
+          BUCKET=$(terragrunt stack output --raw static-site.bucket_name --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+          DIST_ID=$(terragrunt stack output --raw static-site.cloudfront_distribution_id --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+          GAME_URL=$(terragrunt stack output --raw static-site.game_url --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+
+          if [[ -z "$BUCKET" ]]; then
+            echo "Static site bucket_name output is empty" >&2
+            exit 1
+          fi
+
           echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
           echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
           echo "game_url=$GAME_URL" >> "$GITHUB_OUTPUT"
