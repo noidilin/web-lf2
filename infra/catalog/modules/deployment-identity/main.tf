@@ -82,17 +82,28 @@ resource "aws_iam_policy" "github_plan" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "ReadEnvironmentStateObjects"
         Effect = "Allow"
         Action = [
-          "s3:GetObject",
-          "s3:ListBucket"
+          "s3:GetObject"
         ]
-        Resource = [
-          "arn:aws:s3:::noidilin-tf-state",
-          "arn:aws:s3:::noidilin-tf-state/*"
-        ]
+        Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*"
       },
       {
+        Sid    = "ListEnvironmentStatePrefix"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = "arn:aws:s3:::noidilin-tf-state"
+        Condition = {
+          StringLike = {
+            "s3:prefix" = "web-lf2/live/${var.environment}/*"
+          }
+        }
+      },
+      {
+        Sid    = "WriteEnvironmentStateLockFiles"
         Effect = "Allow"
         Action = [
           "s3:PutObject",
@@ -101,45 +112,28 @@ resource "aws_iam_policy" "github_plan" {
         Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*/terraform.tfstate.tflock"
       },
       {
+        Sid    = "ReadStaticSiteBucketConfiguration"
         Effect = "Allow"
         Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem"
+          "s3:ListBucket",
+          "s3:GetAccelerateConfiguration",
+          "s3:GetBucket*",
+          "s3:GetEncryptionConfiguration",
+          "s3:GetLifecycleConfiguration",
+          "s3:GetReplicationConfiguration"
         ]
-        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.account_id}:table/terraform-lock"
+        Resource = "arn:aws:s3:::${var.name_prefix}-static-*"
       },
       {
+        Sid    = "ReadStaticSiteObjects"
         Effect = "Allow"
         Action = [
-          "ec2:DescribeVpcs",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeRouteTables",
-          "ec2:DescribeVpcAttribute",
-          "ec2:DescribeInternetGateways",
-          "ec2:DescribeNatGateways"
+          "s3:GetObject"
         ]
-        Resource = "*"
+        Resource = "arn:aws:s3:::${var.name_prefix}-static-*/*"
       },
       {
-        Effect = "Allow"
-        Action = [
-          "ecs:Describe*",
-          "ecs:List*",
-          "ecs:Get*"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "elasticloadbalancing:Describe*",
-          "elasticloadbalancing:List*"
-        ]
-        Resource = "*"
-      },
-      {
+        Sid    = "ReadStaticSiteCloudFront"
         Effect = "Allow"
         Action = [
           "cloudfront:Get*",
@@ -148,64 +142,23 @@ resource "aws_iam_policy" "github_plan" {
         Resource = "*"
       },
       {
-        Effect = "Allow"
-        Action = [
-          "s3:GetBucketPolicy",
-          "s3:GetBucketAcl",
-          "s3:ListBucket",
-          "s3:GetEncryptionConfiguration",
-          "s3:GetBucketVersioning",
-          "s3:GetBucketPublicAccessBlock"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:GetRole",
-          "iam:GetRolePolicy",
-          "iam:ListAttachedRolePolicies",
-          "iam:ListRolePolicies",
-          "iam:GetPolicy",
-          "iam:GetPolicyVersion"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:DescribeLogGroups",
-          "logs:GetLogEvents"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:DescribeImages",
-          "ecr:DescribeRepositories",
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:GetRepositoryPolicy"
-        ]
-        Resource = "*"
-      },
-      {
+        Sid    = "ReadStaticSiteAcm"
         Effect = "Allow"
         Action = [
           "acm:DescribeCertificate",
+          "acm:GetCertificate",
           "acm:ListCertificates",
-          "acm:GetCertificate"
+          "acm:ListTagsForCertificate"
         ]
         Resource = "*"
       },
       {
+        Sid    = "ReadStaticSiteRoute53"
         Effect = "Allow"
         Action = [
+          "route53:GetHostedZone",
           "route53:ListHostedZones",
           "route53:ListResourceRecordSets",
-          "route53:GetHostedZone",
           "route53:ListTagsForResource"
         ]
         Resource = "*"
@@ -228,121 +181,108 @@ resource "aws_iam_policy" "github_apply" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "ManageEnvironmentStateObjects"
         Effect = "Allow"
         Action = [
-          "s3:*"
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
         ]
-        Resource = [
-          "arn:aws:s3:::noidilin-tf-state",
-          "arn:aws:s3:::noidilin-tf-state/*"
-        ]
+        Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*"
       },
       {
+        Sid    = "ListEnvironmentStatePrefix"
         Effect = "Allow"
         Action = [
-          "dynamodb:*"
+          "s3:ListBucket"
         ]
-        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.account_id}:table/terraform-lock"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:*"
-        ]
-        Resource = "*"
+        Resource = "arn:aws:s3:::noidilin-tf-state"
         Condition = {
-          StringLikeIfExists = {
-            "ec2:ResourceTag/Project" = var.project
+          StringLike = {
+            "s3:prefix" = "web-lf2/live/${var.environment}/*"
           }
         }
       },
       {
-        Effect = "Allow"
-        Action = [
-          "ecs:*"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "elasticloadbalancing:*"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudfront:*"
-        ]
-        Resource = "*"
-      },
-      {
+        Sid    = "ManageStaticSiteBucketConfiguration"
         Effect = "Allow"
         Action = [
           "s3:CreateBucket",
           "s3:DeleteBucket",
+          "s3:ListBucket",
+          "s3:GetAccelerateConfiguration",
+          "s3:GetBucket*",
+          "s3:GetEncryptionConfiguration",
+          "s3:GetLifecycleConfiguration",
+          "s3:GetReplicationConfiguration",
+          "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy",
+          "s3:PutBucketTagging",
+          "s3:DeleteBucketTagging",
+          "s3:PutBucketVersioning",
+          "s3:PutEncryptionConfiguration",
+          "s3:PutBucketPublicAccessBlock"
+        ]
+        Resource = "arn:aws:s3:::${var.name_prefix}-static-*"
+      },
+      {
+        Sid    = "ManageStaticSiteObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
-          "s3:PutBucketPolicy",
-          "s3:PutBucketAcl",
-          "s3:PutEncryptionConfiguration",
-          "s3:PutBucketVersioning",
-          "s3:PutBucketPublicAccessBlock",
-          "s3:GetObject",
-          "s3:ListBucket",
-          "s3:GetBucketPolicy",
-          "s3:GetBucketAcl",
-          "s3:GetEncryptionConfiguration",
-          "s3:GetBucketVersioning",
-          "s3:GetBucketPublicAccessBlock"
+          "s3:AbortMultipartUpload",
+          "s3:ListMultipartUploadParts"
         ]
-        Resource = "arn:aws:s3:::${var.name_prefix}-*"
+        Resource = "arn:aws:s3:::${var.name_prefix}-static-*/*"
       },
       {
+        Sid    = "ManageStaticSiteCloudFront"
         Effect = "Allow"
         Action = [
-          "iam:GetRole",
-          "iam:GetRolePolicy",
-          "iam:ListAttachedRolePolicies",
-          "iam:ListRolePolicies",
-          "iam:GetPolicy",
-          "iam:GetPolicyVersion"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:*"
-        ]
-        Resource = "arn:aws:logs:${var.aws_region}:${var.account_id}:*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:*"
+          "cloudfront:CreateCachePolicy",
+          "cloudfront:CreateDistribution",
+          "cloudfront:CreateInvalidation",
+          "cloudfront:CreateOriginAccessControl",
+          "cloudfront:DeleteCachePolicy",
+          "cloudfront:DeleteDistribution",
+          "cloudfront:DeleteOriginAccessControl",
+          "cloudfront:Get*",
+          "cloudfront:List*",
+          "cloudfront:TagResource",
+          "cloudfront:UntagResource",
+          "cloudfront:UpdateCachePolicy",
+          "cloudfront:UpdateDistribution",
+          "cloudfront:UpdateOriginAccessControl"
         ]
         Resource = "*"
       },
       {
+        Sid    = "ManageStaticSiteAcm"
         Effect = "Allow"
         Action = [
-          "acm:*"
+          "acm:AddTagsToCertificate",
+          "acm:DeleteCertificate",
+          "acm:DescribeCertificate",
+          "acm:GetCertificate",
+          "acm:ListCertificates",
+          "acm:ListTagsForCertificate",
+          "acm:RemoveTagsFromCertificate",
+          "acm:RequestCertificate"
         ]
         Resource = "*"
       },
       {
+        Sid    = "ManageStaticSiteRoute53"
         Effect = "Allow"
         Action = [
-          "route53:*"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:*"
+          "route53:ChangeResourceRecordSets",
+          "route53:GetChange",
+          "route53:GetHostedZone",
+          "route53:ListHostedZones",
+          "route53:ListResourceRecordSets",
+          "route53:ListTagsForResource"
         ]
         Resource = "*"
       }
