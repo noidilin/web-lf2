@@ -58,17 +58,17 @@ jobs:
       - name: Setup Terraform and Terragrunt
         uses: gruntwork-io/terragrunt-action@v3
 
-      - name: Terragrunt apply
+      - name: Terragrunt apply static site
         working-directory: infra/live/dev
-        run: terragrunt stack run apply --non-interactive --tf-forward-stdout
+        run: terragrunt stack run apply --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include
 
       - name: Get deployment outputs
         id: outputs
         working-directory: infra/live/dev
         run: |
-          BUCKET=$(terragrunt stack run output -raw bucket_name --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
-          DIST_ID=$(terragrunt stack run output -raw cloudfront_distribution_id --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
-          GAME_URL=$(terragrunt stack run output -raw game_url --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          BUCKET=$(terragrunt stack run output -raw bucket_name --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include 2>/dev/null || echo "")
+          DIST_ID=$(terragrunt stack run output -raw cloudfront_distribution_id --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include 2>/dev/null || echo "")
+          GAME_URL=$(terragrunt stack run output -raw game_url --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include 2>/dev/null || echo "")
           echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
           echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
           echo "game_url=$GAME_URL" >> "$GITHUB_OUTPUT"

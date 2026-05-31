@@ -64,7 +64,7 @@ jobs:
         working-directory: infra/live/${{ matrix.environment }}
         run: |
           set -o pipefail
-          terragrunt stack run plan --non-interactive --tf-forward-stdout --out-dir plan-out | tee plan.txt
+          terragrunt stack run plan --non-interactive --tf-forward-stdout --queue-exclude-dir '.terragrunt-stack/deployment-identity' --out-dir plan-out | tee plan.txt
 
       - name: Comment PR with plan
         if: github.event_name == 'pull_request'
