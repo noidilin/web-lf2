@@ -75,9 +75,9 @@ jobs:
         id: outputs
         working-directory: infra/live/dev
         run: |
-          BUCKET=$(teragrunt stack run output -raw bucket_name --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
-          DIST_ID=$(teragrunt stack run output -raw cloudfront_distribution_id --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
-          GAME_URL=$(teragrunt stack run output -raw game_url --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          BUCKET=$(terragrunt stack run output -raw bucket_name --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          DIST_ID=$(terragrunt stack run output -raw cloudfront_distribution_id --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
+          GAME_URL=$(terragrunt stack run output -raw game_url --non-interactive --tf-forward-stdout 2>/dev/null || echo "")
           echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
           echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
           echo "game_url=$GAME_URL" >> "$GITHUB_OUTPUT"
