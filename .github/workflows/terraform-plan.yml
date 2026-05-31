@@ -34,8 +34,6 @@ jobs:
         environment: ${{ fromJson(needs.detect-environment.outputs.environments) }}
     runs-on: ubuntu-latest
     env:
-      TF_VERSION: "1.15.*"
-      TG_VERSION: "0.95.0"
       AWS_REGION: ap-northeast-1
     steps:
       - uses: actions/checkout@v6
@@ -46,15 +44,8 @@ jobs:
           role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-${{ matrix.environment }}-github-plan
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Setup Terragrunt
-        uses: gruntwork-io/terragrunt-action@v2
-        with:
-          terragrunt_version: ${{ env.TG_VERSION }}
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@v3
 
       - name: Terragrunt format check
         working-directory: infra
