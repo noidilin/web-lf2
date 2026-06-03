@@ -165,6 +165,25 @@ resource "aws_iam_policy" "github_plan" {
           "route53:ListTagsForResource"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "ReadLobbyInfrastructure"
+        Effect = "Allow"
+        Action = [
+          "ec2:Describe*",
+          "ecr:DescribeImages",
+          "ecr:DescribeRepositories",
+          "ecr:GetLifecyclePolicy",
+          "ecs:Describe*",
+          "ecs:List*",
+          "elasticloadbalancing:Describe*",
+          "iam:GetRole",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies",
+          "logs:DescribeLogGroups",
+          "logs:ListTagsForResource"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -360,6 +379,143 @@ resource "aws_iam_policy" "github_apply" {
           "route53:ListTagsForResource"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "ManageLobbyEcr"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:CompleteLayerUpload",
+          "ecr:CreateRepository",
+          "ecr:DeleteLifecyclePolicy",
+          "ecr:DeleteRepository",
+          "ecr:DescribeImages",
+          "ecr:DescribeRepositories",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:GetLifecyclePolicy",
+          "ecr:InitiateLayerUpload",
+          "ecr:ListImages",
+          "ecr:PutImage",
+          "ecr:PutImageScanningConfiguration",
+          "ecr:PutLifecyclePolicy",
+          "ecr:TagResource",
+          "ecr:UntagResource",
+          "ecr:UploadLayerPart"
+        ]
+        Resource = local.lobby_ecr_repository_arn
+      },
+      {
+        Sid      = "GetEcrAuthorizationToken"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageLobbyCompute"
+        Effect = "Allow"
+        Action = [
+          "ecs:CreateCluster",
+          "ecs:CreateService",
+          "ecs:DeleteCluster",
+          "ecs:DeleteService",
+          "ecs:DeregisterTaskDefinition",
+          "ecs:Describe*",
+          "ecs:List*",
+          "ecs:RegisterTaskDefinition",
+          "ecs:TagResource",
+          "ecs:UntagResource",
+          "ecs:UpdateCluster",
+          "ecs:UpdateService",
+          "ecs:UpdateServicePrimaryTaskSet",
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:CreateTargetGroup",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:Describe*",
+          "elasticloadbalancing:ModifyListener",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:ModifyTargetGroupAttributes",
+          "elasticloadbalancing:RemoveTags"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageLobbyNetworking"
+        Effect = "Allow"
+        Action = [
+          "ec2:AllocateAddress",
+          "ec2:AssociateRouteTable",
+          "ec2:CreateInternetGateway",
+          "ec2:CreateNatGateway",
+          "ec2:CreateRoute",
+          "ec2:CreateRouteTable",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateSubnet",
+          "ec2:CreateTags",
+          "ec2:CreateVpc",
+          "ec2:DeleteInternetGateway",
+          "ec2:DeleteNatGateway",
+          "ec2:DeleteRoute",
+          "ec2:DeleteRouteTable",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DeleteSubnet",
+          "ec2:DeleteVpc",
+          "ec2:Describe*",
+          "ec2:DetachInternetGateway",
+          "ec2:DisassociateRouteTable",
+          "ec2:ModifySubnetAttribute",
+          "ec2:ModifyVpcAttribute",
+          "ec2:ReleaseAddress",
+          "ec2:RevokeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:AuthorizeSecurityGroupIngress"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageLobbyLogsAndAcm"
+        Effect = "Allow"
+        Action = [
+          "acm:AddTagsToCertificate",
+          "acm:DeleteCertificate",
+          "acm:DescribeCertificate",
+          "acm:GetCertificate",
+          "acm:ListCertificates",
+          "acm:ListTagsForCertificate",
+          "acm:RemoveTagsFromCertificate",
+          "acm:RequestCertificate",
+          "logs:CreateLogGroup",
+          "logs:DeleteLogGroup",
+          "logs:DescribeLogGroups",
+          "logs:ListTagsForResource",
+          "logs:PutRetentionPolicy",
+          "logs:TagResource",
+          "logs:UntagResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageLobbyIamRoles"
+        Effect = "Allow"
+        Action = [
+          "iam:AttachRolePolicy",
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:DetachRolePolicy",
+          "iam:GetRole",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies",
+          "iam:PassRole",
+          "iam:TagRole",
+          "iam:UntagRole"
+        ]
+        Resource = local.lobby_iam_roles_arn
       }
     ]
   })

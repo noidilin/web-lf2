@@ -70,6 +70,7 @@ unit "lobby-service" {
     aws_region       = local.aws_region
     account_id       = local.account_id
     hosted_zone_name = local.hosted_zone_name
+    game_domain      = local.game_domain
     lobby_domain     = local.lobby_domain
   }
 }
