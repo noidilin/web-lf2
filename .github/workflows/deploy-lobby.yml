@@ -1,0 +1,144 @@
+name: Deploy Lobby
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/lobby/**'
+      - 'infra/catalog/modules/lobby-service/**'
+      - 'infra/catalog/modules/networking/**'
+      - 'infra/catalog/units/lobby-service/**'
+      - 'infra/catalog/units/networking/**'
+      - 'infra/live/dev/terragrunt.stack.hcl'
+      - 'infra/live/root.hcl'
+      - 'tests/lobby-*.test.mjs'
+      - 'tests/deployed-lobby-contract.test.mjs'
+      - '.github/workflows/deploy-lobby.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  NODE_VERSION: "22"
+
+jobs:
+  deploy-lobby:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install lobby dependencies
+        working-directory: apps/lobby
+        run: npm ci
+
+      - name: Run lobby tests
+        run: node --test tests/lobby-contract.test.mjs tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-dev-github-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@v3
+
+      - name: Apply lobby networking
+        working-directory: infra/live/dev
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-strict-include
+
+      - name: Create lobby ECR repository
+        working-directory: infra/live/dev
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include \
+            -- -target=aws_ecr_repository.lobby -target=aws_ecr_lifecycle_policy.lobby
+
+      - name: Get lobby deployment outputs
+        id: outputs
+        working-directory: infra/live/dev
+        run: |
+          set -euo pipefail
+
+          ECR_URL=$(terragrunt stack output --raw lobby-service.ecr_repository_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+          SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+          LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+
+          if [[ -z "$ECR_URL" ]]; then
+            echo "lobby-service ecr_repository_url output is empty" >&2
+            exit 1
+          fi
+
+          echo "ecr_repository_url=$ECR_URL" >> "$GITHUB_OUTPUT"
+          echo "ecr_registry=${ECR_URL%/*}" >> "$GITHUB_OUTPUT"
+          echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Build lobby image
+        run: |
+          docker build \
+            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:${{ github.sha }}" \
+            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:latest" \
+            apps/lobby
+
+      - name: Push lobby image
+        run: |
+          aws ecr get-login-password --region "${AWS_REGION}" \
+            | docker login --username AWS --password-stdin "${{ steps.outputs.outputs.ecr_registry }}"
+          docker push "${{ steps.outputs.outputs.ecr_repository_url }}:${{ github.sha }}"
+          docker push "${{ steps.outputs.outputs.ecr_repository_url }}:latest"
+
+      - name: Terragrunt apply lobby service
+        working-directory: infra/live/dev
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include
+
+      - name: Refresh lobby outputs
+        id: refreshed
+        working-directory: infra/live/dev
+        run: |
+          set -euo pipefail
+          CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Roll out latest task definition
+        run: |
+          aws ecs update-service \
+            --cluster "${{ steps.refreshed.outputs.ecs_cluster_name }}" \
+            --service "${{ steps.refreshed.outputs.ecs_service_name }}" \
+            --force-new-deployment
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ steps.refreshed.outputs.ecs_cluster_name }}" \
+            --services "${{ steps.refreshed.outputs.ecs_service_name }}"
+
+      - name: Run deployed lobby contract checks
+        env:
+          LOBBY_BASE_URL: ${{ steps.refreshed.outputs.lobby_url }}
+        run: node --test tests/deployed-lobby-contract.test.mjs
