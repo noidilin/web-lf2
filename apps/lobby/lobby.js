@@ -213,11 +213,19 @@ function consumeLoginAttempt(req)
 	var key = req.ip || req.connection.remoteAddress || 'unknown';
 	var now = Date.now();
 	var windowMs = config.loginRateLimitWindowMs || 60000;
+	pruneExpiredRateLimits(now, windowMs);
 	var limit = rateLimits[key];
-	if( !limit || now - limit.startedAt >= windowMs)
+	if( !limit)
 		limit = rateLimits[key] = {startedAt: now, count: 0};
 	limit.count++;
 	return limit.count <= config.loginRateLimitMax;
+}
+
+function pruneExpiredRateLimits(now, windowMs)
+{
+	for( var key in rateLimits)
+		if( now - rateLimits[key].startedAt >= windowMs)
+			delete rateLimits[key];
 }
 
 function cleanupRooms()
