@@ -10,6 +10,7 @@ locals {
   hosted_zone_name = "noidilin.dev"
   game_domain      = "lf2.noidilin.dev"
   lobby_domain     = "lf2-lobby.noidilin.dev"
+  allowed_origins  = "https://${local.game_domain}"
 
   # VPC configuration
   vpc_cidr = "10.1.0.0/16"
@@ -70,7 +71,7 @@ unit "lobby-service" {
     aws_region       = local.aws_region
     account_id       = local.account_id
     hosted_zone_name = local.hosted_zone_name
-    game_domain      = local.game_domain
+    allowed_origins  = local.allowed_origins
     lobby_domain     = local.lobby_domain
   }
 }

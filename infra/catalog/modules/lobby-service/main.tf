@@ -8,6 +8,16 @@ locals {
     Project     = var.project
     Environment = var.environment
   }
+
+  fargate_cpu_memory = {
+    "256"   = [512, 1024, 2048]
+    "512"   = [1024, 2048, 3072, 4096]
+    "1024"  = [2048, 3072, 4096, 5120, 6144, 7168, 8192]
+    "2048"  = [for memory in range(4096, 16385, 1024) : memory]
+    "4096"  = [for memory in range(8192, 30721, 1024) : memory]
+    "8192"  = [for memory in range(16384, 61441, 4096) : memory]
+    "16384" = [for memory in range(32768, 122881, 8192) : memory]
+  }
 }
 
 data "aws_route53_zone" "selected" {
@@ -141,11 +151,12 @@ resource "aws_acm_certificate_validation" "lobby" {
 }
 
 resource "aws_lb" "lobby" {
-  name               = local.name_prefix
-  load_balancer_type = "application"
-  internal           = false
-  security_groups    = [var.alb_security_group_id]
-  subnets            = var.public_subnet_ids
+  name                       = local.name_prefix
+  load_balancer_type         = "application"
+  internal                   = false
+  drop_invalid_header_fields = true
+  security_groups            = [var.alb_security_group_id]
+  subnets                    = var.public_subnet_ids
 
   tags = local.common_tags
 }
@@ -272,6 +283,13 @@ resource "aws_ecs_task_definition" "lobby" {
   ])
 
   tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = contains(local.fargate_cpu_memory[tostring(var.task_cpu)], var.task_memory)
+      error_message = "task_memory must be a valid AWS Fargate memory value for task_cpu."
+    }
+  }
 }
 
 resource "aws_ecs_service" "lobby" {

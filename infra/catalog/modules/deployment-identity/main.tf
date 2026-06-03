@@ -511,11 +511,22 @@ resource "aws_iam_policy" "github_apply" {
           "iam:GetRole",
           "iam:ListAttachedRolePolicies",
           "iam:ListRolePolicies",
-          "iam:PassRole",
+          "iam:PutRolePermissionsBoundary",
           "iam:TagRole",
           "iam:UntagRole"
         ]
         Resource = local.lobby_iam_roles_arn
+      },
+      {
+        Sid      = "PassLobbyRolesToEcsTasks"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = local.lobby_iam_roles_arn
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
       }
     ]
   })
