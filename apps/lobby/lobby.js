@@ -11,23 +11,38 @@ module.exports.Lobby=function(http, config)
 
 var app = express();
 var rooms = {};
+var roomUpdatedAt = {};
+var rateLimits = {};
+var allowedOrigins = parseAllowedOrigins(config.allowedOrigins);
 
-app.use(cors());
+app.use(cors({origin: makeCorsOriginCheck(allowedOrigins)}));
 app.use('/', express.static(__dirname + '/public'));
+
+app.get('/healthz', function(req, res) {
+	res.send(JSON.stringify({ok:true}));
+});
 
 app.get('/lobby', function(req, res) {
 	res.sendFile(__dirname + '/public/lobby.html');
 });
 
 app.get('/protocol', function(req, res) {
-	config.protocol.address = req.protocol+'://'+req.headers.host;
+	var host = config.trustProxy ? (req.headers['x-forwarded-host'] || req.headers.host) : req.headers.host;
+	var proto = config.trustProxy ? (req.headers['x-forwarded-proto'] || req.protocol) : req.protocol;
+	if( typeof host === 'string' && host.indexOf(',') !== -1)
+		host = host.split(',')[0].trim();
+	if( typeof proto === 'string' && proto.indexOf(',') !== -1)
+		proto = proto.split(',')[0].trim();
+	config.protocol.address = proto+'://'+host;
 	res.send(JSON.stringify(config.protocol));
 });
 
 app.post('/login', bodyParser.json(), function(req, res) {
+	cleanupRooms();
 	var name = req.body.name;
 	var room = req.body.room;
-	var host = ( req.headers.host.match(/:/g) ) ? req.headers.host.slice( 0, req.headers.host.indexOf(":") ) : req.headers.host;
+	var hostHeader = req.headers.host || '';
+	var host = ( hostHeader.match(/:/g) ) ? hostHeader.slice( 0, hostHeader.indexOf(":") ) : hostHeader;
 	var guest = url.parse(req.body.origin).hostname;
 
 	if( !name) {
@@ -52,6 +67,14 @@ app.post('/login', bodyParser.json(), function(req, res) {
 		return;
 	}
 
+	if( config.loginRateLimitMax && !consumeLoginAttempt(req)) {
+		res.status(429).send(JSON.stringify({
+			success: false,
+			mess: 'Login rate limit exceeded.'
+		}));
+		return;
+	}
+
 	if( config.public) {
 		if( blacklist[guest]) {
 			res.send(JSON.stringify({
@@ -64,7 +87,7 @@ app.post('/login', bodyParser.json(), function(req, res) {
 	else {
 		if( guest===host) {
 			//okay
-		} else if( !whitelist[guest]) {
+		} else if( !isAllowedGuest(guest)) {
 			res.send(JSON.stringify({
 				success: false,
 				mess: 'Hostname '+guest+' not in server whitelist.'
@@ -75,11 +98,21 @@ app.post('/login', bodyParser.json(), function(req, res) {
 
 	if( !rooms[room]) {
 		rooms[room] = {};
+		roomUpdatedAt[room] = {};
 		console.log('Room '+room+' created.');
+	}
+
+	if( config.maxRoomUsers && !rooms[room][name] && Object.keys(rooms[room]).length >= config.maxRoomUsers) {
+		res.send(JSON.stringify({
+			success: false,
+			mess: 'Room '+room+' is full.'
+		}));
+		return;
 	}
 
 	if( !rooms[room][name]) {
 		rooms[room][name] = 'loggedin';
+		roomUpdatedAt[room][name] = Date.now();
 		res.send(JSON.stringify({
 			success: true
 		}));
@@ -98,11 +131,16 @@ app.on('mount', function() {
 		var name, room;
 		ws.on('message', function(json) {
 			try {
+				if( isOversizedMessage(json, config.maxWsMessageSize)) {
+					ws.close();
+					return;
+				}
 				var data = JSON.parse(json);
-				if( data.mess==='logged in.' && rooms[data.room][data.name]==='loggedin') {
+				if( data.mess==='logged in.' && rooms[data.room] && rooms[data.room][data.name]==='loggedin') {
 					name = data.name;
 					room = data.room;
 					rooms[room][name] = ws;
+					roomUpdatedAt[room][name] = Date.now();
 					console.log('Client '+name+' connected.');
 				}
 				if( data.target==='all') {
@@ -123,22 +161,98 @@ app.on('mount', function() {
 			console.log('Client '+name+' disconnected');
 			if( rooms[room] && rooms[room][name])
 			    delete rooms[room][name];
+			if( roomUpdatedAt[room] && roomUpdatedAt[room][name])
+			    delete roomUpdatedAt[room][name];
 		});
 	});
 });
 
 setInterval(function()
 {
+	cleanupRooms();
 	for( var room in rooms)
 		for( var I in rooms[room])
 			if( rooms[room][I].send)
 				rooms[room][I].send("{}");
 }, 1000*45); //every 45 sec; because heroku timeouts in 55 sec
 
+function parseAllowedOrigins(origins)
+{
+	var parsed = {};
+	if( !origins)
+		return parsed;
+	origins.split(',').forEach(function(origin) {
+		var trimmed = origin.trim();
+		if( !trimmed)
+			return;
+		var hostname = url.parse(trimmed).hostname || trimmed;
+		parsed[hostname] = true;
+	});
+	return parsed;
+}
+
+function makeCorsOriginCheck(origins)
+{
+	return function(origin, callback) {
+		if( !origin || Object.keys(origins).length === 0)
+			return callback(null, true);
+		var hostname = url.parse(origin).hostname;
+		callback(null, !!origins[hostname]);
+	};
+}
+
+function isAllowedGuest(guest)
+{
+	if( allowedOrigins[guest])
+		return true;
+	return whitelist[guest];
+}
+
+function consumeLoginAttempt(req)
+{
+	var key = req.ip || req.connection.remoteAddress || 'unknown';
+	var now = Date.now();
+	var windowMs = config.loginRateLimitWindowMs || 60000;
+	var limit = rateLimits[key];
+	if( !limit || now - limit.startedAt >= windowMs)
+		limit = rateLimits[key] = {startedAt: now, count: 0};
+	limit.count++;
+	return limit.count <= config.loginRateLimitMax;
+}
+
+function cleanupRooms()
+{
+	if( !config.roomTtlMs)
+		return;
+	var now = Date.now();
+	for( var room in rooms) {
+		for( var name in rooms[room]) {
+			var updatedAt = roomUpdatedAt[room] && roomUpdatedAt[room][name];
+			if( updatedAt && now - updatedAt > config.roomTtlMs) {
+				if( rooms[room][name].close)
+					rooms[room][name].close();
+				delete rooms[room][name];
+				delete roomUpdatedAt[room][name];
+			}
+		}
+		if( Object.keys(rooms[room]).length === 0) {
+			delete rooms[room];
+			delete roomUpdatedAt[room];
+		}
+	}
+}
+
+function isOversizedMessage(message, maxSize)
+{
+	if( !maxSize)
+		return false;
+	return Buffer.byteLength(String(message)) > maxSize;
+}
+
 return app;
 }
 
-module.exports.PeerServer=function(http, path)
+module.exports.PeerServer=function(http, path, config)
 {
 var peers = {},
 	wsspeer = new WebSocketServer({server:http, path:path});
@@ -146,6 +260,10 @@ var peers = {},
 wsspeer.on('connection', function(ws) {
 	var name, peer;
 	ws.on('message', function(json) {
+		if( isOversizedPeerMessage(json, config && config.maxWsMessageSize)) {
+			ws.close();
+			return;
+		}
 		var data = JSON.parse(json);
 		if( data.open) {
 			if( !peers[data.name]) {
@@ -174,6 +292,13 @@ wsspeer.on('connection', function(ws) {
 		delete peers[name];
 	});
 });
+
+function isOversizedPeerMessage(message, maxSize)
+{
+	if( !maxSize)
+		return false;
+	return Buffer.byteLength(String(message)) > maxSize;
+}
 
 return http;
 }
