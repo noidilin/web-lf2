@@ -10,7 +10,9 @@ data "aws_iam_openid_connect_provider" "github" {
 # Plan role — used on pull requests for terraform plan
 resource "aws_iam_role" "github_plan" {
   name                 = "${var.name_prefix}-github-plan"
-  permissions_boundary = local.lab_permissions_boundary_arn
+  description          = "GitHub Actions OIDC role for pull-request Terraform plans"
+  max_session_duration = 3600
+  permissions_boundary = local.lab_gitops_oidc_apply_permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -24,8 +26,6 @@ resource "aws_iam_role" "github_plan" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
             "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:pull_request"
           }
         }
@@ -43,7 +43,9 @@ resource "aws_iam_role" "github_plan" {
 # Apply role — used on main branch for terraform apply and deployments
 resource "aws_iam_role" "github_apply" {
   name                 = "${var.name_prefix}-github-apply"
-  permissions_boundary = local.lab_permissions_boundary_arn
+  description          = "GitHub Actions OIDC role for environment-scoped Terraform applies"
+  max_session_duration = 3600
+  permissions_boundary = local.lab_gitops_oidc_apply_permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -57,8 +59,6 @@ resource "aws_iam_role" "github_apply" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
             "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:environment:${var.environment}"
           }
         }
@@ -87,7 +87,7 @@ resource "aws_iam_policy" "github_plan" {
         Action = [
           "s3:GetObject"
         ]
-        Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*"
+        Resource = local.terraform_state_environment_objects
       },
       {
         Sid    = "ListEnvironmentStatePrefix"
@@ -95,10 +95,13 @@ resource "aws_iam_policy" "github_plan" {
         Action = [
           "s3:ListBucket"
         ]
-        Resource = "arn:aws:s3:::noidilin-tf-state"
+        Resource = local.terraform_state_bucket_arn
         Condition = {
           StringLike = {
-            "s3:prefix" = "web-lf2/live/${var.environment}/*"
+            "s3:prefix" = [
+              local.terraform_state_environment_prefix,
+              "${local.terraform_state_environment_prefix}/*"
+            ]
           }
         }
       },
@@ -109,7 +112,7 @@ resource "aws_iam_policy" "github_plan" {
           "s3:PutObject",
           "s3:DeleteObject"
         ]
-        Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*/terraform.tfstate.tflock"
+        Resource = local.terraform_state_environment_lock_files
       },
       {
         Sid    = "ReadStaticSiteBucketConfiguration"
@@ -122,7 +125,7 @@ resource "aws_iam_policy" "github_plan" {
           "s3:GetLifecycleConfiguration",
           "s3:GetReplicationConfiguration"
         ]
-        Resource = "arn:aws:s3:::${var.name_prefix}-static-*"
+        Resource = local.static_site_bucket_arn
       },
       {
         Sid    = "ReadStaticSiteObjects"
@@ -130,7 +133,7 @@ resource "aws_iam_policy" "github_plan" {
         Action = [
           "s3:GetObject"
         ]
-        Resource = "arn:aws:s3:::${var.name_prefix}-static-*/*"
+        Resource = local.static_site_bucket_objects_arn
       },
       {
         Sid    = "ReadStaticSiteCloudFront"
@@ -188,7 +191,7 @@ resource "aws_iam_policy" "github_apply" {
           "s3:PutObject",
           "s3:DeleteObject"
         ]
-        Resource = "arn:aws:s3:::noidilin-tf-state/web-lf2/live/${var.environment}/*"
+        Resource = local.terraform_state_environment_objects
       },
       {
         Sid    = "ListEnvironmentStatePrefix"
@@ -196,10 +199,13 @@ resource "aws_iam_policy" "github_apply" {
         Action = [
           "s3:ListBucket"
         ]
-        Resource = "arn:aws:s3:::noidilin-tf-state"
+        Resource = local.terraform_state_bucket_arn
         Condition = {
           StringLike = {
-            "s3:prefix" = "web-lf2/live/${var.environment}/*"
+            "s3:prefix" = [
+              local.terraform_state_environment_prefix,
+              "${local.terraform_state_environment_prefix}/*"
+            ]
           }
         }
       },
@@ -223,7 +229,7 @@ resource "aws_iam_policy" "github_apply" {
           "s3:PutEncryptionConfiguration",
           "s3:PutBucketPublicAccessBlock"
         ]
-        Resource = "arn:aws:s3:::${var.name_prefix}-static-*"
+        Resource = local.static_site_bucket_arn
       },
       {
         Sid    = "ManageStaticSiteObjects"
@@ -235,7 +241,76 @@ resource "aws_iam_policy" "github_apply" {
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
-        Resource = "arn:aws:s3:::${var.name_prefix}-static-*/*"
+        Resource = local.static_site_bucket_objects_arn
+      },
+      {
+        Sid    = "DenyPublicStaticSiteObjectAcls"
+        Effect = "Deny"
+        Action = [
+          "s3:PutObject"
+        ]
+        Resource = local.static_site_bucket_objects_arn
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = [
+              "public-read",
+              "public-read-write",
+              "authenticated-read"
+            ]
+          }
+        }
+      },
+      {
+        Sid    = "DenyStaticSitePublicAclsNotBlocked"
+        Effect = "Deny"
+        Action = [
+          "s3:PutBucketPublicAccessBlock"
+        ]
+        Resource = local.static_site_bucket_arn
+        Condition = {
+          Bool = {
+            "s3:PublicAccessBlockConfiguration/BlockPublicAcls" = "false"
+          }
+        }
+      },
+      {
+        Sid    = "DenyStaticSitePublicAclsNotIgnored"
+        Effect = "Deny"
+        Action = [
+          "s3:PutBucketPublicAccessBlock"
+        ]
+        Resource = local.static_site_bucket_arn
+        Condition = {
+          Bool = {
+            "s3:PublicAccessBlockConfiguration/IgnorePublicAcls" = "false"
+          }
+        }
+      },
+      {
+        Sid    = "DenyStaticSitePublicPoliciesNotBlocked"
+        Effect = "Deny"
+        Action = [
+          "s3:PutBucketPublicAccessBlock"
+        ]
+        Resource = local.static_site_bucket_arn
+        Condition = {
+          Bool = {
+            "s3:PublicAccessBlockConfiguration/BlockPublicPolicy" = "false"
+          }
+        }
+      },
+      {
+        Sid    = "DenyStaticSitePublicBucketsNotRestricted"
+        Effect = "Deny"
+        Action = [
+          "s3:PutBucketPublicAccessBlock"
+        ]
+        Resource = local.static_site_bucket_arn
+        Condition = {
+          Bool = {
+            "s3:PublicAccessBlockConfiguration/RestrictPublicBuckets" = "false"
+          }
+        }
       },
       {
         Sid    = "ManageStaticSiteCloudFront"

@@ -63,7 +63,7 @@ This project uses GitHub Actions OIDC for AWS authentication — no long-lived k
 | Plan | `devops-web-lf2-{env}-github-plan` | `repo:noidilin/web-lf2:pull_request` | `terraform plan`, read state |
 | Apply | `devops-web-lf2-{env}-github-apply` | `repo:noidilin/web-lf2:environment:{env}` | `terraform apply`, S3 sync, ECR push, ECS deploy |
 
-Both roles carry `lab-devops-permissions-boundary`.
+Both GitHub OIDC Terraform roles carry `lab-gitops-oidc-apply-permissions-boundary`. Workload/runtime roles created by Terraform should carry `lab-devops-permissions-boundary`.
 
 ### Required GitHub configuration
 
@@ -84,9 +84,11 @@ Created once per AWS account by the `github-oidc-provider` shared unit. Environm
 All IAM roles and policies follow the lab naming and boundary rules:
 
 - Names prefixed with `devops-`, `lab-`, or `terraform-`
-- Every role has `permissions_boundary` set to `lab-devops-permissions-boundary`
-- Boundary policy is pre-existing — never modified by project Terraform
-- See `docs/IAMIC-permission-for-lab.md` in the devops docs for full rules
+- Every role has an approved `permissions_boundary`
+- GitHub OIDC Terraform roles use `lab-gitops-oidc-apply-permissions-boundary`
+- Workload/runtime roles use `lab-devops-permissions-boundary`
+- Boundary policies are pre-existing — never modified by project Terraform
+- See `/Users/noid/hub/dev/portfolio/devops/docs/aws-sandbox/for-human-aws-sandbox-iam.md` and `/Users/noid/hub/dev/portfolio/devops/docs/aws-sandbox/for-agent-aws-sandbox-setup.md` for full rules
 
 ## Module status
 
