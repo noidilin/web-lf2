@@ -4,10 +4,9 @@ import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 
-const require = createRequire(import.meta.url);
-const WebSocket = require('../apps/lobby/node_modules/ws');
-
 const LOBBY_CWD = new URL('../apps/lobby/', import.meta.url);
+const require = createRequire(new URL('package.json', LOBBY_CWD));
+const WebSocket = require('ws');
 
 async function startLobby(env = {}) {
   const port = await getFreePort();
@@ -39,6 +38,9 @@ async function startLobby(env = {}) {
     port,
     baseUrl: `http://127.0.0.1:${port}`,
     child,
+    getOutput() {
+      return output;
+    },
     async stop() {
       if (child.exitCode === null) {
         child.kill('SIGTERM');
@@ -123,6 +125,37 @@ test('POST /login rate limits repeated attempts from the same client', async (t)
   assert.deepEqual(await limited.json(), { success: false, mess: 'Login rate limit exceeded.' });
 });
 
+test('POST /login uses bounded trusted proxy hops for rate limit keys', async (t) => {
+  const lobby = await startLobby({
+    TRUST_PROXY: 'true',
+    TRUST_PROXY_HOPS: '1',
+    LOGIN_RATE_LIMIT_MAX: '2',
+    LOGIN_RATE_LIMIT_WINDOW_MS: '60000',
+  });
+  t.after(() => lobby.stop());
+
+  await postLogin(lobby.baseUrl, { name: 'one', room: 'phase-2', origin: lobby.baseUrl }, {
+    'x-forwarded-for': '198.51.100.1, 203.0.113.10',
+  });
+  await postLogin(lobby.baseUrl, { name: 'two', room: 'phase-2', origin: lobby.baseUrl }, {
+    'x-forwarded-for': '198.51.100.2, 203.0.113.10',
+  });
+  const limited = await postLogin(lobby.baseUrl, { name: 'three', room: 'phase-2', origin: lobby.baseUrl }, {
+    'x-forwarded-for': '198.51.100.3, 203.0.113.10',
+  });
+
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { success: false, mess: 'Login rate limit exceeded.' });
+});
+
+test('startup log reports PUBLIC_LOBBY resolved mode', async (t) => {
+  const lobby = await startLobby({ PUBLIC_LOBBY: 'true' });
+  t.after(() => lobby.stop());
+
+  assert.match(lobby.getOutput(), /public server/);
+  assert.doesNotMatch(lobby.getOutput(), /private server/);
+});
+
 test('POST /login cleans stale room users after the room TTL', async (t) => {
   const lobby = await startLobby({ ROOM_TTL_MS: '150' });
   t.after(() => lobby.stop());
@@ -147,10 +180,10 @@ test('chat WebSocket closes oversized messages', async (t) => {
   assert.equal(ws.readyState, WebSocket.CLOSED);
 });
 
-async function postLogin(baseUrl, body) {
+async function postLogin(baseUrl, body, headers = {}) {
   return fetch(`${baseUrl}/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
 }

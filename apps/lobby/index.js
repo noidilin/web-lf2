@@ -24,14 +24,19 @@ var opts = require('optimist')
 
 var port = Number(opts.port || process.env.PORT || 8001);
 var trustProxy = String(process.env.TRUST_PROXY || '').toLowerCase() === 'true';
+var trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1);
 
-if( trustProxy)
-	app.enable('trust proxy');
+if( trustProxy) {
+	if( !isFinite(trustProxyHops) || trustProxyHops < 1)
+		trustProxyHops = 1;
+	app.set('trust proxy', trustProxyHops);
+}
 
 var lobby_config = {
 	public: opts.public || String(process.env.PUBLIC_LOBBY || '').toLowerCase() === 'true',
 	protocol: null,
 	trustProxy: trustProxy,
+	trustProxyHops: trustProxyHops,
 	allowedOrigins: process.env.ALLOWED_ORIGINS || '',
 	roomTtlMs: Number(process.env.ROOM_TTL_MS || 0),
 	maxRoomUsers: Number(process.env.MAX_ROOM_USERS || 0),
@@ -40,7 +45,7 @@ var lobby_config = {
 	maxWsMessageSize: Number(process.env.MAX_WS_MESSAGE_SIZE || 0)
 };
 
-if( opts.public)
+if( lobby_config.public)
 	console.log('public server');
 else
 	console.log('private server');
