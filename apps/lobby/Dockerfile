@@ -1,4 +1,4 @@
-FROM node:12-buster-slim
+FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production \
     PORT=8001
@@ -6,7 +6,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --only=production \
+RUN npm ci --omit=dev \
     && npm cache clean --force
 
 COPY . ./
