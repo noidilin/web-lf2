@@ -47,8 +47,9 @@ ACM certificates for the ALB (lobby) stay in `ap-northeast-1` with the default p
 | Project variable | `web-lf2` |
 | Environment names | `dev`, `prod` |
 | Naming prefix | `devops-web-lf2-${var.environment}` |
-| Permissions boundary | `arn:aws:iam::549475122024:policy/lab-devops-permissions-boundary` |
-| Boundary usage | Every `aws_iam_role` must set `permissions_boundary` |
+| Runtime permissions boundary | `arn:aws:iam::549475122024:policy/lab-devops-permissions-boundary` |
+| GitHub OIDC Terraform boundary | `arn:aws:iam::549475122024:policy/lab-gitops-oidc-apply-permissions-boundary` |
+| Boundary usage | Every `aws_iam_role` must set an approved `permissions_boundary` |
 | Boundary management | Pre-existing — do not create, update, or delete from lab Terraform |
 
 ### IAM naming rules
@@ -125,9 +126,9 @@ Create one plan/apply pair per environment (`dev`, `prod`) so each environment c
 
 Both roles:
 
-- Carry `lab-devops-permissions-boundary`
+- Carry `lab-gitops-oidc-apply-permissions-boundary`
 - Use the shared account-level OIDC provider (no long-lived AWS keys)
-- Follow the naming and boundary rules from `docs/IAMIC-permission-for-lab.md`
+- Follow the naming and boundary rules from `/Users/noid/hub/dev/portfolio/devops/docs/aws-sandbox/for-human-aws-sandbox-iam.md` and `/Users/noid/hub/dev/portfolio/devops/docs/aws-sandbox/for-agent-aws-sandbox-setup.md`
 
 ## Production Approval
 
@@ -166,5 +167,6 @@ Lobby subdomains: lf2-lobby / dev.lf2-lobby
 Environments:    dev, prod
 IaC:             Terraform + Terragrunt
 State bucket:    noidilin-tf-state
-Boundary policy: lab-devops-permissions-boundary
+Runtime boundary policy: lab-devops-permissions-boundary
+GitHub OIDC Terraform boundary policy: lab-gitops-oidc-apply-permissions-boundary
 ```
