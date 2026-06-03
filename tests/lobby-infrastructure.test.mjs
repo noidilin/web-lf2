@@ -5,7 +5,7 @@ import test from 'node:test';
 const lobbyMain = await readFile(new URL('../infra/catalog/modules/lobby-service/main.tf', import.meta.url), 'utf8');
 const lobbyVars = await readFile(new URL('../infra/catalog/modules/lobby-service/variables.tf', import.meta.url), 'utf8');
 const lobbyUnit = await readFile(new URL('../infra/catalog/units/lobby-service/terragrunt.hcl', import.meta.url), 'utf8');
-const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby.yml', import.meta.url), 'utf8').catch(() => '');
+const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby.yml', import.meta.url), 'utf8');
 
 test('lobby infrastructure exposes F.Lobby through ECS Fargate behind HTTPS ALB', () => {
   assert.match(lobbyMain, /aws_ecr_repository"\s+"lobby"/);

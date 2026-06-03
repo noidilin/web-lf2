@@ -73,12 +73,26 @@ variable "task_cpu" {
   description = "Fargate task CPU units"
   type        = number
   default     = 256
+
+  validation {
+    condition     = contains([256, 512, 1024, 2048, 4096, 8192, 16384], var.task_cpu)
+    error_message = "task_cpu must be one of the AWS Fargate CPU values: 256, 512, 1024, 2048, 4096, 8192, or 16384."
+  }
 }
 
 variable "task_memory" {
   description = "Fargate task memory in MiB"
   type        = number
   default     = 512
+
+  validation {
+    condition = contains(concat(
+      [512, 1024, 2048, 3072],
+      [for memory in range(4096, 30721, 1024) : memory],
+      [for memory in range(32768, 122881, 4096) : memory]
+    ), var.task_memory)
+    error_message = "task_memory must be a valid AWS Fargate memory value in MiB."
+  }
 }
 
 variable "allowed_origins" {
@@ -115,4 +129,9 @@ variable "log_retention_days" {
   description = "CloudWatch Logs retention period for lobby logs"
   type        = number
   default     = 14
+
+  validation {
+    condition     = contains([0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_retention_days)
+    error_message = "log_retention_days must be 0 or a CloudWatch Logs supported retention value."
+  }
 }
