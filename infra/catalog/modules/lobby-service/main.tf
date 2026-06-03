@@ -25,42 +25,6 @@ data "aws_route53_zone" "selected" {
   private_zone = false
 }
 
-# ─── Container Registry ─────────────────────────────────────────────────────
-
-resource "aws_ecr_repository" "lobby" {
-  name                 = local.name_prefix
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  encryption_configuration {
-    encryption_type = "AES256"
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_ecr_lifecycle_policy" "lobby" {
-  repository = aws_ecr_repository.lobby.name
-
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Keep the most recent 20 lobby images"
-        selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 20
-        }
-        action = { type = "expire" }
-      }
-    ]
-  })
-}
-
 # ─── Logs ───────────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "lobby" {
@@ -248,7 +212,7 @@ resource "aws_ecs_task_definition" "lobby" {
   container_definitions = jsonencode([
     {
       name      = local.container_name
-      image     = "${aws_ecr_repository.lobby.repository_url}:${var.image_tag}"
+      image     = "${var.ecr_repository_url}:${var.image_tag}"
       essential = true
       portMappings = [
         {

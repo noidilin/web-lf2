@@ -60,6 +60,18 @@ unit "static-site" {
   }
 }
 
+unit "lobby-bootstrap" {
+  source = "${local.units_path}/lobby-bootstrap"
+  path   = "lobby-bootstrap"
+
+  values = {
+    environment = local.environment
+    project     = local.project
+    name_prefix = local.name_prefix
+    aws_region  = local.aws_region
+  }
+}
+
 unit "lobby-service" {
   source = "${local.units_path}/lobby-service"
   path   = "lobby-service"
