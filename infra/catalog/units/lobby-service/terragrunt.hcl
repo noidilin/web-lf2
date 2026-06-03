@@ -32,6 +32,15 @@ dependency "networking" {
   }
 }
 
+dependency "lobby_bootstrap" {
+  config_path = "../lobby-bootstrap"
+
+  mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+  mock_outputs = {
+    ecr_repository_url = "549475122024.dkr.ecr.ap-northeast-1.amazonaws.com/devops-web-lf2-dev-lobby"
+  }
+}
+
 terraform {
   source = "${find_in_parent_folders("catalog/modules")}//lobby-service"
 }
@@ -45,6 +54,7 @@ inputs = {
   hosted_zone_name      = values.hosted_zone_name
   lobby_domain          = values.lobby_domain
   allowed_origins       = values.allowed_origins
+  ecr_repository_url    = dependency.lobby_bootstrap.outputs.ecr_repository_url
   vpc_id                = dependency.networking.outputs.vpc_id
   public_subnet_ids     = dependency.networking.outputs.public_subnet_ids
   private_subnet_ids    = dependency.networking.outputs.private_subnet_ids

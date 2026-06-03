@@ -4,11 +4,13 @@ import test from 'node:test';
 
 const lobbyMain = await readFile(new URL('../infra/catalog/modules/lobby-service/main.tf', import.meta.url), 'utf8');
 const lobbyVars = await readFile(new URL('../infra/catalog/modules/lobby-service/variables.tf', import.meta.url), 'utf8');
+const lobbyBootstrapMain = await readFile(new URL('../infra/catalog/modules/lobby-bootstrap/main.tf', import.meta.url), 'utf8');
 const lobbyUnit = await readFile(new URL('../infra/catalog/units/lobby-service/terragrunt.hcl', import.meta.url), 'utf8');
 const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby.yml', import.meta.url), 'utf8');
 
 test('lobby infrastructure exposes F.Lobby through ECS Fargate behind HTTPS ALB', () => {
-  assert.match(lobbyMain, /aws_ecr_repository"\s+"lobby"/);
+  assert.match(lobbyBootstrapMain, /aws_ecr_repository"\s+"lobby"/);
+  assert.doesNotMatch(lobbyMain, /aws_ecr_repository"\s+"lobby"/);
   assert.match(lobbyMain, /aws_ecs_cluster"\s+"lobby"/);
   assert.match(lobbyMain, /aws_ecs_task_definition"\s+"lobby"/);
   assert.match(lobbyMain, /requires_compatibilities\s+=\s+\["FARGATE"\]/);
@@ -36,6 +38,8 @@ test('lobby module consumes networking outputs instead of public task networking
   assert.match(lobbyVars, /variable "vpc_id"/);
   assert.match(lobbyVars, /nullable\s+=\s+false/);
   assert.match(lobbyUnit, /dependency "networking"/);
+  assert.match(lobbyUnit, /dependency "lobby_bootstrap"/);
+  assert.match(lobbyUnit, /ecr_repository_url\s+=\s+dependency\.lobby_bootstrap\.outputs\.ecr_repository_url/);
   assert.match(lobbyUnit, /vpc_id\s+=\s+dependency\.networking\.outputs\.vpc_id/);
   assert.match(lobbyUnit, /private_subnet_ids\s+=\s+dependency\.networking\.outputs\.private_subnet_ids/);
   assert.match(lobbyUnit, /public_subnet_ids\s+=\s+dependency\.networking\.outputs\.public_subnet_ids/);
@@ -43,6 +47,8 @@ test('lobby module consumes networking outputs instead of public task networking
 
 test('deploy lobby workflow builds, pushes, rolls out, and checks the deployed contract', () => {
   assert.match(deployWorkflow, /name: Deploy Lobby/);
+  assert.match(deployWorkflow, /lobby-bootstrap/);
+  assert.doesNotMatch(deployWorkflow, /-target=aws_ecr_repository\.lobby/);
   assert.match(deployWorkflow, /docker build/);
   assert.match(deployWorkflow, /aws ecr get-login-password/);
   assert.match(deployWorkflow, /docker push/);

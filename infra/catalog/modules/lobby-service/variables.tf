@@ -63,6 +63,12 @@ variable "ecs_security_group_id" {
   nullable    = false
 }
 
+variable "ecr_repository_url" {
+  description = "URL of the pre-created lobby ECR repository"
+  type        = string
+  nullable    = false
+}
+
 variable "image_tag" {
   description = "Initial lobby image tag used by the ECS task definition"
   type        = string

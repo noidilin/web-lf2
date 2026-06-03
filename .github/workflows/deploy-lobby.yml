@@ -5,8 +5,10 @@ on:
     branches: [main]
     paths:
       - 'apps/lobby/**'
+      - 'infra/catalog/modules/lobby-bootstrap/**'
       - 'infra/catalog/modules/lobby-service/**'
       - 'infra/catalog/modules/networking/**'
+      - 'infra/catalog/units/lobby-bootstrap/**'
       - 'infra/catalog/units/lobby-service/**'
       - 'infra/catalog/units/networking/**'
       - 'infra/live/dev/terragrunt.stack.hcl'
@@ -64,13 +66,12 @@ jobs:
             --queue-include-dir '.terragrunt-stack/networking' \
             --queue-strict-include
 
-      - name: Create lobby ECR repository
+      - name: Apply lobby bootstrap
         working-directory: infra/live/dev
         run: |
           terragrunt stack run apply --non-interactive --tf-forward-stdout \
-            --queue-include-dir '.terragrunt-stack/lobby-service' \
-            --queue-strict-include \
-            -- -target=aws_ecr_repository.lobby -target=aws_ecr_lifecycle_policy.lobby
+            --queue-include-dir '.terragrunt-stack/lobby-bootstrap' \
+            --queue-strict-include
 
       - name: Get lobby deployment outputs
         id: outputs
@@ -78,13 +79,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          ECR_URL=$(terragrunt stack output --raw lobby-service.ecr_repository_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          ECR_URL=$(terragrunt stack output --raw lobby-bootstrap.ecr_repository_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-bootstrap' --queue-strict-include)
           CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
           SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
           LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
 
           if [[ -z "$ECR_URL" ]]; then
-            echo "lobby-service ecr_repository_url output is empty" >&2
+            echo "lobby-bootstrap ecr_repository_url output is empty" >&2
             exit 1
           fi
 
