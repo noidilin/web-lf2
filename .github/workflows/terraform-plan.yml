@@ -12,6 +12,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# PR plans are read-only and become stale after a new push, so cancel older runs
+# for the same PR to reduce duplicate plan comments and wasted CI time.
+concurrency:
+  group: terraform-plan-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   detect-environment:
     runs-on: ubuntu-latest
