@@ -84,10 +84,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ECR_URL=$(terragrunt stack output --raw lobby-bootstrap.ecr_repository_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-bootstrap' --queue-strict-include)
-          CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
-          SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
-          LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+          ECR_URL=$(terragrunt stack output --format raw lobby-bootstrap.ecr_repository_url --non-interactive --no-stack-generate)
 
           if [[ -z "$ECR_URL" ]]; then
             echo "lobby-bootstrap ecr_repository_url output is empty" >&2
@@ -96,9 +93,6 @@ jobs:
 
           echo "ecr_repository_url=$ECR_URL" >> "$GITHUB_OUTPUT"
           echo "ecr_registry=${ECR_URL%/*}" >> "$GITHUB_OUTPUT"
-          echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
-          echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
-          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
 
       - name: Build lobby image
         run: |
@@ -127,9 +121,18 @@ jobs:
         working-directory: infra/live/dev
         run: |
           set -euo pipefail
-          CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
-          SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
-          LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+
+          SERVICE_OUTPUTS=$(terragrunt stack output --format json lobby-service --non-interactive --no-stack-generate)
+          CLUSTER=$(jq -r '."lobby-service".ecs_cluster_name // empty' <<< "$SERVICE_OUTPUTS")
+          SERVICE=$(jq -r '."lobby-service".ecs_service_name // empty' <<< "$SERVICE_OUTPUTS")
+          LOBBY_URL=$(jq -r '."lobby-service".lobby_url // empty' <<< "$SERVICE_OUTPUTS")
+
+          if [[ -z "$CLUSTER" || -z "$SERVICE" || -z "$LOBBY_URL" ]]; then
+            echo "lobby-service outputs are incomplete" >&2
+            echo "$SERVICE_OUTPUTS" >&2
+            exit 1
+          fi
+
           echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
           echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
           echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
