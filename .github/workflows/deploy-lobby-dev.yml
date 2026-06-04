@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
     paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
       - 'apps/lobby/**'
+      - 'infra/catalog/modules/deployment-identity/**'
       - 'infra/catalog/modules/lobby-bootstrap/**'
       - 'infra/catalog/modules/lobby-service/**'
       - 'infra/catalog/modules/networking/**'
@@ -24,7 +27,7 @@ permissions:
 
 concurrency:
   group: deploy-lobby-dev
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   AWS_REGION: ap-northeast-1
@@ -51,8 +54,15 @@ jobs:
         working-directory: apps/lobby
         run: npm ci
 
-      - name: Run lobby tests
-        run: node --test tests/lobby-contract.test.mjs tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs
+      - name: Run lobby image smoke test
+        run: npm run test:lobby
+
+      - name: Run lobby hardening and infrastructure tests
+        run: node --test tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs
+
+      - name: Tear down lobby compose stack
+        if: always()
+        run: docker compose down --remove-orphans
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
