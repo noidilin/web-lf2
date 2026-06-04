@@ -1,30 +1,23 @@
 name: Deploy Static Site Dev
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/**'
-      - 'assets/**'
-      - 'scripts/**'
-      - 'infra/catalog/modules/static-site/**'
-      - 'infra/catalog/units/static-site/**'
-      - 'infra/live/dev/terragrunt.stack.hcl'
-      - 'infra/live/root.hcl'
-      - 'tests/**'
-      - '.github/workflows/deploy-static-dev.yml'
+  workflow_call:
+    inputs:
+      orchestrated:
+        description: 'Use the parent Deploy Dev workflow as the dev deployment concurrency owner.'
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-# Queue all dev deployment mutations instead of canceling in-flight runs. The
-# static smoke test depends on the deployed lobby, and the workflows share the
-# same Terragrunt dev stack, so a newer push should wait for the current
-# mutation to finish cleanly.
+# Standalone dispatches share the dev deployment queue. Calls from Deploy Dev
+# get a per-run group because the parent workflow owns the cross-workflow queue.
 concurrency:
-  group: deploy-dev
+  group: ${{ inputs.orchestrated && format('deploy-dev-{0}-static', github.run_id) || 'deploy-dev' }}
   cancel-in-progress: false
 
 env:

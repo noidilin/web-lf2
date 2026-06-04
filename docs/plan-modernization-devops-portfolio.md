@@ -400,10 +400,13 @@ Automate repeatable deployment of both artifacts.
 
 ```txt
 .github/workflows/ci.yml
+.github/workflows/deploy-dev.yml
 .github/workflows/deploy-static-dev.yml
 .github/workflows/deploy-lobby-dev.yml
 .github/workflows/terraform-plan.yml
 ```
+
+`deploy-dev.yml` orchestrates dev deployment so the lobby deploy completes before the static deployed smoke test runs.
 
 ## Static pipeline
 

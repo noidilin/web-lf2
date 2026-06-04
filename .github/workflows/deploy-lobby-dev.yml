@@ -1,35 +1,23 @@
 name: Deploy Lobby Dev
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'apps/lobby/**'
-      - 'infra/catalog/modules/deployment-identity/**'
-      - 'infra/catalog/modules/lobby-bootstrap/**'
-      - 'infra/catalog/modules/lobby-service/**'
-      - 'infra/catalog/modules/networking/**'
-      - 'infra/catalog/units/lobby-bootstrap/**'
-      - 'infra/catalog/units/lobby-service/**'
-      - 'infra/catalog/units/networking/**'
-      - 'infra/live/dev/terragrunt.stack.hcl'
-      - 'infra/live/root.hcl'
-      - 'tests/lobby-*.test.mjs'
-      - 'tests/deployed-lobby-contract.test.mjs'
-      - '.github/workflows/deploy-lobby-dev.yml'
+  workflow_call:
+    inputs:
+      orchestrated:
+        description: 'Use the parent Deploy Dev workflow as the dev deployment concurrency owner.'
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-# Queue all dev deployment mutations instead of canceling in-flight runs. This
-# workflow mutates Terraform-managed infra and ECS state, so interrupting it
-# mid-apply/rollout can leave partial changes or stale state locks.
+# Standalone dispatches share the dev deployment queue. Calls from Deploy Dev
+# get a per-run group because the parent workflow owns the cross-workflow queue.
 concurrency:
-  group: deploy-dev
+  group: ${{ inputs.orchestrated && format('deploy-dev-{0}-lobby', github.run_id) || 'deploy-dev' }}
   cancel-in-progress: false
 
 env:

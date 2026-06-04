@@ -174,9 +174,12 @@ Recommended workflows:
 ```txt
 .github/workflows/ci.yml
 .github/workflows/terraform-plan.yml
+.github/workflows/deploy-dev.yml
 .github/workflows/deploy-static-dev.yml
 .github/workflows/deploy-lobby-dev.yml
 ```
+
+`deploy-dev.yml` orchestrates dev deployment with `deploy-lobby-dev` before `deploy-static-dev`.
 
 Static deployment flow:
 

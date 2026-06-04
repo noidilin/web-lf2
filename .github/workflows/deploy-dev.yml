@@ -1,0 +1,51 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'apps/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - 'infra/catalog/modules/deployment-identity/**'
+      - 'infra/catalog/modules/lobby-bootstrap/**'
+      - 'infra/catalog/modules/lobby-service/**'
+      - 'infra/catalog/modules/networking/**'
+      - 'infra/catalog/modules/static-site/**'
+      - 'infra/catalog/units/lobby-bootstrap/**'
+      - 'infra/catalog/units/lobby-service/**'
+      - 'infra/catalog/units/networking/**'
+      - 'infra/catalog/units/static-site/**'
+      - 'infra/live/dev/terragrunt.stack.hcl'
+      - 'infra/live/root.hcl'
+      - 'tests/**'
+      - '.github/workflows/deploy-dev.yml'
+      - '.github/workflows/deploy-lobby-dev.yml'
+      - '.github/workflows/deploy-static-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# Model the dev deployment dependency graph as a single queued workflow:
+# deployed lobby first, then deployed static game smoke against that lobby.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy-lobby-dev:
+    uses: ./.github/workflows/deploy-lobby-dev.yml
+    with:
+      orchestrated: true
+    secrets: inherit
+
+  deploy-static-dev:
+    needs: deploy-lobby-dev
+    uses: ./.github/workflows/deploy-static-dev.yml
+    with:
+      orchestrated: true
+    secrets: inherit
