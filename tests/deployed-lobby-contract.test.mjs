@@ -19,7 +19,9 @@ run('deployed lobby preserves HTTP F.Lobby contract', async () => {
 
   const lobby = await fetch(`${lobbyBaseUrl}/lobby`);
   assert.equal(lobby.status, 200);
-  assert.match(await lobby.text(), /lobby/i);
+  const lobbyHtml = await lobby.text();
+  assert.match(lobbyHtml, /lobby/i);
+  assert.doesNotMatch(lobbyHtml, /<script\s+[^>]*src=['"]http:\/\//i);
 
   const invalidLogin = await postLogin({ room: 'deployed-smoke', origin: lobbyBaseUrl });
   assert.equal(invalidLogin.status, 200);

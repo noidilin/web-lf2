@@ -38,6 +38,7 @@ test('GET /lobby returns lobby HTML', async () => {
   const html = await response.text();
   assert.match(html, /<html|<!doctype html/i);
   assert.match(html, /lobby/i);
+  assert.doesNotMatch(html, /<script\s+[^>]*src=['"]http:\/\//i);
 });
 
 test('POST /login rejects missing legacy room and name inputs', async () => {

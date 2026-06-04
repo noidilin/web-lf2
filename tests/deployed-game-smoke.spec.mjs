@@ -60,34 +60,52 @@ test.describe('deployed game smoke test', () => {
   });
 
   test('opens the network menu and loads the deployed lobby iframe', async ({ page }) => {
-    const protocolResponsePromise = page.waitForResponse(
-      (response) => response.url() === `${lobbyBaseUrl}/protocol` && response.status() === 200,
-    );
-
-    await page.goto('/game/game.html');
-    await page.locator('.LFroot').waitFor();
-
-    const frontpageMenu = page.locator('.frontpage_content .F_sprite_group').first();
-    await expect(frontpageMenu).toBeVisible();
-    const menuBox = await frontpageMenu.boundingBox();
-    expect(menuBox).not.toBeNull();
-    await page.mouse.click(menuBox.x + menuBox.width / 2, menuBox.y + menuBox.height / 2);
-    await expect(page.locator('.network_game')).toBeVisible();
-
-    await expect(page.locator('.server_address')).toHaveValue(lobbyBaseUrl);
-    await page.locator('.server_connect').click();
-
-    const protocolResponse = await protocolResponsePromise;
-    expect(protocolResponse.status()).toBe(200);
-    const protocol = await protocolResponse.json();
-    expect(protocol).toMatchObject({
-      name: 'F.Lobby (WebSocket)',
-      library: '/ws/network.js',
-      path: '/peer',
-      address: lobbyBaseUrl,
-    });
+    await openDeployedLobby(page);
 
     await expect(page.locator('.lobby')).toBeVisible();
     await expect(page.locator('.lobby_window')).toHaveAttribute('src', `${lobbyBaseUrl}/lobby`);
   });
+
+  test('logs into the deployed lobby chat iframe', async ({ page }) => {
+    await openDeployedLobby(page);
+
+    const lobbyFrame = page.frameLocator('.lobby_window');
+    await lobbyFrame.locator('.login .name').fill(`smoke-${Date.now()}`);
+    await lobbyFrame.locator('.login .button').click();
+
+    await expect(lobbyFrame.locator('.login')).toBeHidden();
+    await expect(lobbyFrame.locator('.mess ul')).toContainText('Welcome to the F.LF Lobby');
+  });
 });
+
+async function openDeployedLobby(page) {
+  const protocolResponsePromise = page.waitForResponse(
+    (response) => response.url() === `${lobbyBaseUrl}/protocol` && response.status() === 200,
+  );
+
+  await page.goto('/game/game.html');
+  await page.locator('.LFroot').waitFor();
+
+  const frontpageMenu = page.locator('.frontpage_content .F_sprite_group').first();
+  await expect(frontpageMenu).toBeVisible();
+  const menuBox = await frontpageMenu.boundingBox();
+  expect(menuBox).not.toBeNull();
+  await page.mouse.click(menuBox.x + menuBox.width / 2, menuBox.y + menuBox.height / 2);
+  await expect(page.locator('.network_game')).toBeVisible();
+
+  await expect(page.locator('.server_address')).toHaveValue(lobbyBaseUrl);
+  await page.locator('.server_connect').click();
+
+  const protocolResponse = await protocolResponsePromise;
+  expect(protocolResponse.status()).toBe(200);
+  const protocol = await protocolResponse.json();
+  expect(protocol).toMatchObject({
+    name: 'F.Lobby (WebSocket)',
+    library: '/ws/network.js',
+    path: '/peer',
+    address: lobbyBaseUrl,
+  });
+
+  await expect(page.locator('.lobby')).toBeVisible();
+  await expect(page.locator('.lobby_window')).toHaveAttribute('src', `${lobbyBaseUrl}/lobby`);
+}
