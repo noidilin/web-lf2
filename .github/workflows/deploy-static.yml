@@ -19,6 +19,13 @@ permissions:
   id-token: write
   contents: read
 
+# Queue dev static deploys instead of canceling in-flight runs. This workflow
+# applies Terraform, syncs S3 with --delete, and invalidates CloudFront, so a
+# newer push should wait for the current mutation to finish cleanly.
+concurrency:
+  group: deploy-static-dev
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ap-northeast-1
   NODE_VERSION: "22"
