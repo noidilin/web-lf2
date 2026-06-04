@@ -141,20 +141,11 @@ define(function () {
 
   // return the parameters passed by location
   util.location_parameters = function () {
-    var param = window.location.href.split('/').pop()
     const query = {}
-    if (param.indexOf('?') !== -1) {
-      var param = param.split('?').pop().split('&')
-      for (let i = 0; i < param.length; i++) {
-        pp = param[i].split('=')
-        if (pp.length === 1) {
-          query[pp[0]] = 1
-        }
-        if (pp.length === 2) {
-          query[pp[0]] = pp[1]
-        }
-      }
-    }
+    const params = new URLSearchParams(window.location.search)
+    params.forEach(function (value, key) {
+      query[key] = value === '' ? 1 : value
+    })
     return query
   }
 

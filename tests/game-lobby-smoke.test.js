@@ -16,7 +16,7 @@ test.describe('game-to-lobby network menu smoke baseline', () => {
       (response) => response.url() === `${lobbyBaseUrl}/protocol` && response.status() === 200,
     );
 
-    await page.goto(`/game/game.html?server=${lobbyBaseUrl.replaceAll('/', '|')}`);
+    await page.goto(`/game/game.html?server=${lobbyBaseUrl}`);
     await page.locator('.LFroot').waitFor();
 
     // Browser-automate the legacy sprite menu. The second item is the network game menu.
