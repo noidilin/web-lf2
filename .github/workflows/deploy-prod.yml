@@ -1,0 +1,28 @@
+name: Deploy Prod
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# Production deployments are manually dispatched and queued so only one release
+# can promote the shared prod AWS baseline at a time.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-lobby-prod:
+    uses: ./.github/workflows/deploy-lobby-prod.yml
+    with:
+      orchestrated: true
+    secrets: inherit
+
+  deploy-static-prod:
+    needs: deploy-lobby-prod
+    uses: ./.github/workflows/deploy-static-prod.yml
+    with:
+      orchestrated: true
+    secrets: inherit

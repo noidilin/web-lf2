@@ -1,0 +1,153 @@
+name: Deploy Lobby Prod
+
+on:
+  workflow_call:
+    inputs:
+      orchestrated:
+        description: 'Use the parent Deploy Prod workflow as the prod deployment concurrency owner.'
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# Standalone dispatches share the prod deployment queue. Calls from Deploy Prod
+# get a per-run group because the parent workflow owns the cross-workflow queue.
+concurrency:
+  group: ${{ inputs.orchestrated && format('deploy-prod-{0}-lobby', github.run_id) || 'deploy-prod' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-1
+  NODE_VERSION: "22"
+
+jobs:
+  deploy-lobby-prod:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install root dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Install lobby dependencies
+        working-directory: apps/lobby
+        run: npm ci
+
+      - name: Run lobby image smoke test
+        run: npm run test:lobby
+
+      - name: Run lobby hardening and infrastructure tests
+        run: node --test tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs
+
+      - name: Tear down lobby compose stack
+        if: always()
+        run: docker compose down --remove-orphans
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
+        with:
+          role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-prod-github-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a
+
+      - name: Apply lobby networking
+        working-directory: infra/live/prod
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-strict-include
+
+      - name: Apply lobby bootstrap
+        working-directory: infra/live/prod
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/lobby-bootstrap' \
+            --queue-strict-include
+
+      - name: Get lobby deployment outputs
+        id: outputs
+        working-directory: infra/live/prod
+        run: |
+          set -euo pipefail
+
+          ECR_URL=$(terragrunt stack output --raw lobby-bootstrap.ecr_repository_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-bootstrap' --queue-strict-include)
+          CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+          SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+          LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include 2>/dev/null || true)
+
+          if [[ -z "$ECR_URL" ]]; then
+            echo "lobby-bootstrap ecr_repository_url output is empty" >&2
+            exit 1
+          fi
+
+          echo "ecr_repository_url=$ECR_URL" >> "$GITHUB_OUTPUT"
+          echo "ecr_registry=${ECR_URL%/*}" >> "$GITHUB_OUTPUT"
+          echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Build lobby image
+        run: |
+          docker build \
+            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:${{ github.sha }}" \
+            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:latest" \
+            apps/lobby
+
+      - name: Push lobby image
+        run: |
+          aws ecr get-login-password --region "${AWS_REGION}" \
+            | docker login --username AWS --password-stdin "${{ steps.outputs.outputs.ecr_registry }}"
+          docker push "${{ steps.outputs.outputs.ecr_repository_url }}:${{ github.sha }}"
+          docker push "${{ steps.outputs.outputs.ecr_repository_url }}:latest"
+
+      - name: Terragrunt apply lobby service
+        working-directory: infra/live/prod
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include
+
+      - name: Refresh lobby outputs
+        id: refreshed
+        working-directory: infra/live/prod
+        run: |
+          set -euo pipefail
+          CLUSTER=$(terragrunt stack output --raw lobby-service.ecs_cluster_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          SERVICE=$(terragrunt stack output --raw lobby-service.ecs_service_name --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          LOBBY_URL=$(terragrunt stack output --raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+          echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Roll out latest task definition
+        run: |
+          aws ecs update-service \
+            --cluster "${{ steps.refreshed.outputs.ecs_cluster_name }}" \
+            --service "${{ steps.refreshed.outputs.ecs_service_name }}" \
+            --force-new-deployment
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ steps.refreshed.outputs.ecs_cluster_name }}" \
+            --services "${{ steps.refreshed.outputs.ecs_service_name }}"
+
+      - name: Run deployed lobby contract checks
+        env:
+          LOBBY_BASE_URL: ${{ steps.refreshed.outputs.lobby_url }}
+        run: node --test tests/deployed-lobby-contract.test.mjs
