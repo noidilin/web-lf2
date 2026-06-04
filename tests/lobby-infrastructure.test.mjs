@@ -6,7 +6,7 @@ const lobbyMain = await readFile(new URL('../infra/catalog/modules/lobby-service
 const lobbyVars = await readFile(new URL('../infra/catalog/modules/lobby-service/variables.tf', import.meta.url), 'utf8');
 const lobbyBootstrapMain = await readFile(new URL('../infra/catalog/modules/lobby-bootstrap/main.tf', import.meta.url), 'utf8');
 const lobbyUnit = await readFile(new URL('../infra/catalog/units/lobby-service/terragrunt.hcl', import.meta.url), 'utf8');
-const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby.yml', import.meta.url), 'utf8');
+const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-dev.yml', import.meta.url), 'utf8');
 
 test('lobby infrastructure exposes F.Lobby through ECS Fargate behind HTTPS ALB', () => {
   assert.match(lobbyBootstrapMain, /aws_ecr_repository"\s+"lobby"/);
@@ -46,7 +46,7 @@ test('lobby module consumes networking outputs instead of public task networking
 });
 
 test('deploy lobby workflow builds, pushes, rolls out, and checks the deployed contract', () => {
-  assert.match(deployWorkflow, /name: Deploy Lobby/);
+  assert.match(deployWorkflow, /name: Deploy Lobby Dev/);
   assert.match(deployWorkflow, /lobby-bootstrap/);
   assert.doesNotMatch(deployWorkflow, /-target=aws_ecr_repository\.lobby/);
   assert.match(deployWorkflow, /docker build/);

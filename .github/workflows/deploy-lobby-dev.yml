@@ -1,4 +1,4 @@
-name: Deploy Lobby
+name: Deploy Lobby Dev
 
 on:
   push:
@@ -15,12 +15,16 @@ on:
       - 'infra/live/root.hcl'
       - 'tests/lobby-*.test.mjs'
       - 'tests/deployed-lobby-contract.test.mjs'
-      - '.github/workflows/deploy-lobby.yml'
+      - '.github/workflows/deploy-lobby-dev.yml'
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
+
+concurrency:
+  group: deploy-lobby-dev
+  cancel-in-progress: true
 
 env:
   AWS_REGION: ap-northeast-1
