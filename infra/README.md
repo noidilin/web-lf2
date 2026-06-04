@@ -52,6 +52,19 @@ cd infra/live/shared && terragrunt stack run apply
 cd infra/live/dev && terragrunt stack run apply
 ```
 
+### Bootstrap/update GitHub deployment identity
+
+GitHub Actions should not routinely manage the OIDC role it is currently using. When `infra/catalog/modules/deployment-identity/**` changes, apply that unit locally with the AWS SSO `agent` profile before relying on the deploy workflow:
+
+```sh
+cd infra/live/dev
+terragrunt stack run apply --non-interactive \
+  --queue-include-dir '.terragrunt-stack/deployment-identity' \
+  --queue-strict-include
+```
+
+If the dev deploy fails with `UnauthorizedOperation` for actions that are already present in `deployment-identity/main.tf` (for example `ec2:CreateVpc` or `ec2:AllocateAddress`), the live `devops-web-lf2-dev-github-apply` policy is stale. Run the command above locally, then rerun the workflow.
+
 ## GitHub Actions OIDC
 
 This project uses GitHub Actions OIDC for AWS authentication — no long-lived keys.

@@ -174,6 +174,7 @@ resource "aws_iam_policy" "github_plan" {
           "ecr:DescribeImages",
           "ecr:DescribeRepositories",
           "ecr:GetLifecyclePolicy",
+          "ecr:ListTagsForResource",
           "ecs:Describe*",
           "ecs:List*",
           "elasticloadbalancing:Describe*",
@@ -194,10 +195,12 @@ resource "aws_iam_policy" "github_plan" {
   }
 }
 
-# Apply policy — write: terraform apply, S3 sync, ECR push, ECS deploy
+# Apply policies — write: terraform apply, S3 sync, ECR push, ECS deploy.
+# Split across multiple managed policies to stay below the IAM managed policy
+# 6,144-character document quota while keeping each permission area scoped.
 resource "aws_iam_policy" "github_apply" {
   name        = "${var.name_prefix}-github-apply-policy"
-  description = "Permissions for GitHub Actions terraform apply and deployments"
+  description = "Core permissions for GitHub Actions terraform apply"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -379,7 +382,23 @@ resource "aws_iam_policy" "github_apply" {
           "route53:ListTagsForResource"
         ]
         Resource = "*"
-      },
+      }
+    ]
+  })
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_policy" "github_apply_lobby" {
+  name        = "${var.name_prefix}-github-apply-lobby-policy"
+  description = "Lobby deployment permissions for GitHub Actions terraform apply"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
       {
         Sid    = "ManageLobbyEcr"
         Effect = "Allow"
@@ -396,6 +415,7 @@ resource "aws_iam_policy" "github_apply" {
           "ecr:GetLifecyclePolicy",
           "ecr:InitiateLayerUpload",
           "ecr:ListImages",
+          "ecr:ListTagsForResource",
           "ecr:PutImage",
           "ecr:PutImageScanningConfiguration",
           "ecr:PutLifecyclePolicy",
@@ -450,6 +470,7 @@ resource "aws_iam_policy" "github_apply" {
         Action = [
           "ec2:AllocateAddress",
           "ec2:AssociateRouteTable",
+          "ec2:AttachInternetGateway",
           "ec2:CreateInternetGateway",
           "ec2:CreateNatGateway",
           "ec2:CreateRoute",
@@ -545,4 +566,9 @@ resource "aws_iam_role_policy_attachment" "github_plan" {
 resource "aws_iam_role_policy_attachment" "github_apply" {
   role       = aws_iam_role.github_apply.name
   policy_arn = aws_iam_policy.github_apply.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_apply_lobby" {
+  role       = aws_iam_role.github_apply.name
+  policy_arn = aws_iam_policy.github_apply_lobby.arn
 }
