@@ -21,6 +21,8 @@ jobs:
     environment: dev
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
