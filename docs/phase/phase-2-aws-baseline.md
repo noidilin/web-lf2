@@ -157,7 +157,7 @@ Recommended workflows:
 .github/workflows/ci.yml
 .github/workflows/terraform-plan.yml
 .github/workflows/deploy-static.yml
-.github/workflows/deploy-lobby.yml
+.github/workflows/deploy-lobby-dev.yml
 ```
 
 Static pipeline:
