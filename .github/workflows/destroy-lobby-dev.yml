@@ -1,0 +1,46 @@
+name: Destroy Lobby Dev
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# Avoid racing deploy/destroy mutations against the same dev stack.
+concurrency:
+  group: deploy-lobby-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-1
+
+jobs:
+  destroy-lobby:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
+        with:
+          role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-dev-github-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a
+
+      - name: Destroy lobby service
+        working-directory: infra/live/dev
+        run: |
+          terragrunt stack run destroy --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include
+
+      - name: Destroy lobby networking
+        working-directory: infra/live/dev
+        run: |
+          terragrunt stack run destroy --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-strict-include
