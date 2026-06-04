@@ -41,7 +41,7 @@
 
         util.div('window_caption_title').innerHTML = buildinfo.version;
 
-        var manager = new Manager(package, buildinfo);
+        var manager = new Manager(package, buildinfo, flf_config);
 
     });
 

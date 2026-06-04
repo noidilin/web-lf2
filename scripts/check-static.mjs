@@ -87,6 +87,15 @@ async function assertGameConfig(artifactDir) {
       `Static artifact is invalid; expected game config package to be ${EXPECTED_PACKAGE} but found ${JSON.stringify(config.package)}`,
     );
   }
+
+  if (!config.lobby || typeof config.lobby.url !== 'string') {
+    throw new Error('Static artifact is invalid; missing deployed lobby URL in game config');
+  }
+
+  const lobbyUrl = new URL(config.lobby.url);
+  if (lobbyUrl.protocol !== 'https:') {
+    throw new Error(`Static artifact is invalid; deployed lobby URL must use HTTPS: ${config.lobby.url}`);
+  }
 }
 
 async function assertNoUnexpectedExternalUrls(artifactDir) {

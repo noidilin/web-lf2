@@ -29,6 +29,7 @@ concurrency:
 env:
   AWS_REGION: ap-northeast-1
   NODE_VERSION: "22"
+  LOBBY_BASE_URL: https://dev.lf2-lobby.noidilin.dev
 
 jobs:
   deploy-static:
@@ -105,4 +106,5 @@ jobs:
         if: steps.outputs.outputs.game_url != ''
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.outputs.outputs.game_url }}
+          LOBBY_BASE_URL: ${{ env.LOBBY_BASE_URL }}
         run: npx playwright test --config playwright.deployed.config.mjs

@@ -2,7 +2,7 @@ define(['LF/global', 'LF/network', 'LF/soundpack', 'LF/match', 'LF/util', 'LF/to
   'core/util', 'LF/sprite-select', 'core/sprite-dom', 'core/animator', 'core/controller', 'core/resourcemap', 'core/support'],
   function (global, network, Soundpack, Match, util, Touchcontroller, Random,
     Futil, Fsprite, Fsprite_dom, Fanimator, Fcontroller, Fresourcemap, Fsupport) {
-    function Manager(pack, buildinfo) {
+    function Manager(pack, buildinfo, appConfig) {
       const param = util.location_parameters()
 
       const sel = pack.data.UI.data.character_selection
@@ -143,6 +143,14 @@ define(['LF/global', 'LF/network', 'LF/soundpack', 'LF/match', 'LF/util', 'LF/to
             }
           }
         }
+        if (appConfig && appConfig.lobby && appConfig.lobby.name && appConfig.lobby.url) {
+          const existingServers = settings.server || {}
+          delete existingServers[appConfig.lobby.name]
+          const configuredServer = {}
+          configuredServer[appConfig.lobby.name] = appConfig.lobby.url
+          settings.server = Object.assign(configuredServer, existingServers)
+        }
+
         for (var i = 0; i < settings.player.length; i++) {
           session.player[i] = settings.player[i]
         }

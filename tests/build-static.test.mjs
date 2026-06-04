@@ -36,6 +36,18 @@ test('buildStatic creates the deployable legacy game artifact', async () => {
   }
 });
 
+test('buildStatic injects the environment-specific lobby URL into the game config', async () => {
+  const outDir = await mkdtemp(path.join(tmpdir(), 'web-lf2-static-'));
+  try {
+    await buildStatic({ outDir, lobbyBaseUrl: 'https://dev.lf2-lobby.noidilin.dev' });
+
+    const gameHtml = await readText(path.join(outDir, 'game/game.html'));
+    assert.match(gameHtml, /"lobby"\s*:\s*\{"name":"Dev F\.Lobby","url":"https:\/\/dev\.lf2-lobby\.noidilin\.dev"\}/);
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
 async function fileExists(filePath) {
   try {
     await access(filePath);
