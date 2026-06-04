@@ -1,5 +1,7 @@
 import { test, expect } from 'playwright/test';
 
+const lobbyBaseUrl = process.env.LOBBY_BASE_URL || 'https://dev.lf2-lobby.noidilin.dev';
+
 test.describe('deployed game smoke test', () => {
   const fatalErrors = [];
 
@@ -34,9 +36,10 @@ test.describe('deployed game smoke test', () => {
     const canvas = page.locator('canvas.canvas');
     await expect(canvas).toBeAttached();
 
-    // Game config present and pointing at expected package
+    // Game config present and pointing at expected package and lobby
     const configText = await page.locator('#flf-config').textContent();
     expect(configText).toContain('"package":"LF2_19/"');
+    expect(configText).toContain(`"url":"${lobbyBaseUrl}"`);
 
     // No fatal console errors
     expect(fatalErrors).toEqual([]);
@@ -54,5 +57,37 @@ test.describe('deployed game smoke test', () => {
 
     const contentType = response.headers()['content-type'] || '';
     expect(contentType).toMatch(/html/i);
+  });
+
+  test('opens the network menu and loads the deployed lobby iframe', async ({ page }) => {
+    const protocolResponsePromise = page.waitForResponse(
+      (response) => response.url() === `${lobbyBaseUrl}/protocol` && response.status() === 200,
+    );
+
+    await page.goto('/game/game.html');
+    await page.locator('.LFroot').waitFor();
+
+    const frontpageMenu = page.locator('.frontpage_content .F_sprite_group').first();
+    await expect(frontpageMenu).toBeVisible();
+    const menuBox = await frontpageMenu.boundingBox();
+    expect(menuBox).not.toBeNull();
+    await page.mouse.click(menuBox.x + menuBox.width / 2, menuBox.y + menuBox.height / 2);
+    await expect(page.locator('.network_game')).toBeVisible();
+
+    await expect(page.locator('.server_address')).toHaveValue(lobbyBaseUrl);
+    await page.locator('.server_connect').click();
+
+    const protocolResponse = await protocolResponsePromise;
+    expect(protocolResponse.status()).toBe(200);
+    const protocol = await protocolResponse.json();
+    expect(protocol).toMatchObject({
+      name: 'F.Lobby (WebSocket)',
+      library: '/ws/network.js',
+      path: '/peer',
+      address: lobbyBaseUrl,
+    });
+
+    await expect(page.locator('.lobby')).toBeVisible();
+    await expect(page.locator('.lobby_window')).toHaveAttribute('src', `${lobbyBaseUrl}/lobby`);
   });
 });

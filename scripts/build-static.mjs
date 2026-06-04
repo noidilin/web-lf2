@@ -26,9 +26,10 @@ const COPY_ENTRIES = [
 ];
 
 const GAME_CONFIG_PATTERN = /<pre id='flf-config' style='display:none'>\s*\{[^<]+\}\s*<\/pre>/;
-const DEPLOYED_GAME_CONFIG = `<pre id='flf-config' style='display:none'>\n{"root":"../","package":"LF2_19/"}\n</pre>`;
+const DEFAULT_LOBBY_NAME = 'Dev F.Lobby';
+const DEFAULT_LOBBY_BASE_URL = 'https://dev.lf2-lobby.noidilin.dev';
 
-export async function buildStatic({ root: inputRoot, outDir: inputOutDir } = {}) {
+export async function buildStatic({ root: inputRoot, outDir: inputOutDir, lobbyBaseUrl: inputLobbyBaseUrl } = {}) {
   const root = inputRoot ? path.resolve(inputRoot) : repoRoot;
   const outDir = inputOutDir ? path.resolve(inputOutDir) : path.join(root, 'dist/static');
 
@@ -45,7 +46,10 @@ export async function buildStatic({ root: inputRoot, outDir: inputOutDir } = {})
     });
   }
 
-  await rewriteGameConfig(path.join(outDir, 'game/game.html'));
+  await rewriteGameConfig(path.join(outDir, 'game/game.html'), {
+    lobbyName: process.env.LOBBY_NAME || DEFAULT_LOBBY_NAME,
+    lobbyBaseUrl: inputLobbyBaseUrl || process.env.LOBBY_BASE_URL || DEFAULT_LOBBY_BASE_URL,
+  });
 
   return { outDir };
 }
@@ -65,15 +69,32 @@ async function assertRequiredInputs(root) {
   }
 }
 
-async function rewriteGameConfig(gameHtmlPath) {
+async function rewriteGameConfig(gameHtmlPath, { lobbyName, lobbyBaseUrl }) {
+  const lobbyUrl = normalizedHttpsUrl(lobbyBaseUrl);
+  const deployedGameConfig = `<pre id='flf-config' style='display:none'>\n${JSON.stringify({
+    root: '../',
+    package: 'LF2_19/',
+    lobby: { name: lobbyName, url: lobbyUrl },
+  })}\n</pre>`;
   const original = await readFile(gameHtmlPath, 'utf8');
-  const rewritten = original.replace(GAME_CONFIG_PATTERN, DEPLOYED_GAME_CONFIG);
+  const rewritten = original.replace(GAME_CONFIG_PATTERN, deployedGameConfig);
 
   if (rewritten === original) {
     throw new Error(`Cannot update deployed package path in ${gameHtmlPath}`);
   }
 
   await writeFile(gameHtmlPath, rewritten);
+}
+
+function normalizedHttpsUrl(input) {
+  const url = new URL(input);
+  if (url.protocol !== 'https:') {
+    throw new Error(`Lobby base URL must use HTTPS for deployed static artifacts: ${input}`);
+  }
+  url.pathname = url.pathname.replace(/\/$/, '');
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
 }
 
 if (process.argv[1] === scriptPath) {

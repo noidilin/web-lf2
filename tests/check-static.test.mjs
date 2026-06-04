@@ -51,6 +51,21 @@ test('checkStatic rejects the wrong deployed package path in game config', async
   }
 });
 
+test('checkStatic rejects missing deployed lobby URL in game config', async () => {
+  const outDir = await mkdtemp(path.join(tmpdir(), 'web-lf2-check-static-'));
+  try {
+    await buildStatic({ outDir, lobbyBaseUrl: 'https://dev.lf2-lobby.noidilin.dev' });
+    await writeFile(
+      path.join(outDir, 'game/game.html'),
+      `<pre id='flf-config' style='display:none'>\n{"root":"../","package":"LF2_19/"}\n</pre>`,
+    );
+
+    await assert.rejects(checkStatic({ artifactDir: outDir }), /missing deployed lobby URL/);
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
 test('checkStatic rejects insecure and protocol-relative external URLs', async () => {
   const outDir = await mkdtemp(path.join(tmpdir(), 'web-lf2-check-static-'));
   try {
