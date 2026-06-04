@@ -1,4 +1,4 @@
-name: Deploy Static Site
+name: Deploy Static Site Dev
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
       - 'infra/live/dev/terragrunt.stack.hcl'
       - 'infra/live/root.hcl'
       - 'tests/**'
-      - '.github/workflows/deploy-static.yml'
+      - '.github/workflows/deploy-static-dev.yml'
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,7 @@ env:
   LOBBY_BASE_URL: https://dev.lf2-lobby.noidilin.dev
 
 jobs:
-  deploy-static:
+  deploy-static-dev:
     runs-on: ubuntu-latest
     environment: dev
     steps:

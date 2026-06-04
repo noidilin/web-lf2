@@ -400,7 +400,7 @@ Automate repeatable deployment of both artifacts.
 
 ```txt
 .github/workflows/ci.yml
-.github/workflows/deploy-static.yml
+.github/workflows/deploy-static-dev.yml
 .github/workflows/deploy-lobby-dev.yml
 .github/workflows/terraform-plan.yml
 ```
