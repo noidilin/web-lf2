@@ -603,9 +603,8 @@ define(['LF/global', 'LF/network', 'LF/soundpack', 'LF/match', 'LF/util', 'LF/to
               manager.switch_UI('frontpage')
             }
             if (param.server) {
-              const address = param.server.replace(/\|/g, '/')
               util.div('server_select').value = 'third_party_server'
-              util.div('server_address').value = address
+              util.div('server_address').value = param.server
             }
             util.div('server_connect').onclick = function () {
               const server_address = normalize_address(util.div('server_address').value)
