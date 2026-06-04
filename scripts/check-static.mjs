@@ -88,11 +88,20 @@ async function assertGameConfig(artifactDir) {
     );
   }
 
-  if (!config.lobby || typeof config.lobby.url !== 'string') {
+  if (!config.lobby || typeof config.lobby.name !== 'string' || config.lobby.name.trim() === '') {
+    throw new Error('Static artifact is invalid; missing deployed lobby name in game config');
+  }
+
+  if (typeof config.lobby.url !== 'string') {
     throw new Error('Static artifact is invalid; missing deployed lobby URL in game config');
   }
 
-  const lobbyUrl = new URL(config.lobby.url);
+  let lobbyUrl;
+  try {
+    lobbyUrl = new URL(config.lobby.url);
+  } catch {
+    throw new Error(`Static artifact is invalid; deployed lobby URL is not a valid absolute URL: ${config.lobby.url}`);
+  }
   if (lobbyUrl.protocol !== 'https:') {
     throw new Error(`Static artifact is invalid; deployed lobby URL must use HTTPS: ${config.lobby.url}`);
   }
