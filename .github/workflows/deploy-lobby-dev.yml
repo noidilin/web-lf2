@@ -25,11 +25,11 @@ permissions:
   id-token: write
   contents: read
 
-# Queue dev deploys instead of canceling in-flight runs. This workflow mutates
-# Terraform-managed infra and ECS state, so interrupting it mid-apply/rollout can
-# leave partial changes or stale state locks.
+# Queue all dev deployment mutations instead of canceling in-flight runs. This
+# workflow mutates Terraform-managed infra and ECS state, so interrupting it
+# mid-apply/rollout can leave partial changes or stale state locks.
 concurrency:
-  group: deploy-lobby-dev
+  group: deploy-dev
   cancel-in-progress: false
 
 env:

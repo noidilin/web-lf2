@@ -9,7 +9,7 @@ permissions:
 
 # Avoid racing deploy/destroy mutations against the same dev stack.
 concurrency:
-  group: deploy-lobby-dev
+  group: deploy-dev
   cancel-in-progress: false
 
 env:
