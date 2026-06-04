@@ -531,6 +531,7 @@ resource "aws_iam_policy" "github_apply_lobby" {
           "iam:DetachRolePolicy",
           "iam:GetRole",
           "iam:ListAttachedRolePolicies",
+          "iam:ListInstanceProfilesForRole",
           "iam:ListRolePolicies",
           "iam:PutRolePermissionsBoundary",
           "iam:TagRole",
