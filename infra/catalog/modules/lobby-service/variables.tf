@@ -75,8 +75,11 @@ variable "image_tag" {
   nullable    = false
 
   validation {
-    condition     = can(regex("^sha-[0-9a-f]{40}$", var.image_tag))
-    error_message = "image_tag must use the canonical sha-<40 character lowercase git SHA> format."
+    condition = (
+      can(regex("^sha-[0-9a-f]{40}$", var.image_tag))
+      && var.image_tag != "sha-0000000000000000000000000000000000000000"
+    )
+    error_message = "image_tag must use a real canonical sha-<40 character lowercase git SHA> tag, not the zero-SHA sentinel."
   }
 }
 

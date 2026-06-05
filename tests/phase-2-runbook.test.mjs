@@ -8,6 +8,7 @@ test('Phase 2 runbook covers deployment validation and planning', () => {
   assert.match(runbook, /## Validate and plan infrastructure changes/);
   assert.match(runbook, /terragrunt hcl format --check --diff/);
   assert.match(runbook, /terragrunt stack run validate --non-interactive/);
+  assert.match(runbook, /LOBBY_IMAGE_TAG="sha-\$\(git rev-parse HEAD\)"/);
   assert.match(runbook, /terragrunt stack run plan --non-interactive/);
   assert.match(runbook, /deployment-identity/);
 });
@@ -24,7 +25,7 @@ test('Phase 2 runbook covers dev and prod deployments', () => {
 test('Phase 2 runbook explains build once, promote many release provenance', () => {
   assert.match(runbook, /## Release artifact provenance/);
   assert.match(runbook, /build once, promote many/);
-  assert.match(runbook, /immutable canonical tag `sha-\$\{github\.sha\}`/);
+  assert.match(runbook, /immutable canonical tag `sha-\$\{\{ github\.sha \}\}`/);
   assert.match(runbook, /ECS task definitions receive `LOBBY_IMAGE_TAG` and run the selected SHA-tagged image/);
   assert.match(runbook, /`aws ecr batch-get-image` and `aws ecr put-image`/);
   assert.match(runbook, /observability labels/);

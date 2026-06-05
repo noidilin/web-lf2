@@ -63,6 +63,7 @@ test('lobby module consumes networking outputs instead of public task networking
   assert.match(lobbyVars, /nullable\s+=\s+false/);
   assert.match(lobbyVars, /variable "image_tag"/);
   assert.match(lobbyVars, /\^sha-\[0-9a-f\]\{40\}\$/);
+  assert.match(lobbyVars, /var\.image_tag != "sha-0{40}"/);
   assert.doesNotMatch(lobbyVars, /default\s+=\s+"latest"/);
   for (const stack of [devStack, prodStack]) {
     assert.match(stack, /lobby_image_tag\s+=\s+get_env\("LOBBY_IMAGE_TAG", "sha-0{40}"\)/);

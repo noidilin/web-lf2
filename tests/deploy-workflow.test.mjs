@@ -12,6 +12,7 @@ const lobbyDestroyWorkflow = await readFile(new URL('../.github/workflows/destro
 const deployProdWorkflow = await readFile(new URL('../.github/workflows/deploy-prod.yml', import.meta.url), 'utf8');
 const staticProdWorkflow = await readFile(new URL('../.github/workflows/deploy-static-prod.yml', import.meta.url), 'utf8');
 const lobbyProdWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-prod.yml', import.meta.url), 'utf8');
+const terraformPlanWorkflow = await readFile(new URL('../.github/workflows/terraform-plan.yml', import.meta.url), 'utf8');
 const observabilityDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-dev.yml', import.meta.url), 'utf8');
 const observabilityProdWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-prod.yml', import.meta.url), 'utf8');
 const lobbyTestMarker = '/tmp/f-lobby-test-stage-success';
@@ -51,6 +52,8 @@ test('lobby Dockerfile exposes a test-gated production image', () => {
   assert.match(lobbyDockerfile, /node --check lobby\.js/);
   assert.match(lobbyDockerfile, /\/healthz/);
   assert.match(lobbyDockerfile, /\/protocol/);
+  assert.match(lobbyDockerfile, /\(async \(\) =>/);
+  assert.match(lobbyDockerfile, /\.catch\(\(error\) => \{ console\.error\(error\); process\.exit\(1\); \}\)/);
   assert.match(lobbyDockerfile, /FROM runtime-deps AS production/);
   assert.match(lobbyDockerfile, new RegExp(`> ${escapeRegExp(lobbyTestMarker)}`));
   assert.match(
@@ -135,6 +138,11 @@ test('prod lobby promotion verifies and deploys an existing SHA-tagged artifact 
   assert.notEqual(verifyIndex, -1);
   assert.notEqual(applyIndex, -1);
   assert.ok(verifyIndex < applyIndex);
+});
+
+test('terraform plan workflow uses a real SHA-shaped lobby image tag', () => {
+  assert.match(terraformPlanWorkflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
+  assert.doesNotMatch(terraformPlanWorkflow, /LOBBY_IMAGE_TAG:\s+sha-0{40}/);
 });
 
 test('dev deploy leaves keep standalone dispatches queued', () => {
