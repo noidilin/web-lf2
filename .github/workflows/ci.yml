@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'apps/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'infra/**'
+      - 'docker-compose.yml'
+      - 'playwright.config.mjs'
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'apps/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'infra/**'
+      - 'docker-compose.yml'
+      - 'playwright.config.mjs'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  static-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Build static artifact
+        run: npm run build:static
+
+      - name: Check static artifact
+        run: npm run check:static
+
+      - name: Run static unit tests
+        run: node --test tests/build-static.test.mjs tests/check-static.test.mjs
+
+  lobby-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install root dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Install lobby dependencies
+        working-directory: apps/lobby
+        run: npm ci
+
+      - name: Run lobby image smoke test
+        run: npm run test:lobby
+
+      - name: Tear down lobby compose stack
+        if: always()
+        run: docker compose down --remove-orphans
+
+      - name: Run lobby hardening and infrastructure tests
+        run: node --test tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs
+
+  workflow-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run workflow and documentation tests
+        run: node --test tests/deploy-workflow.test.mjs tests/observability.test.mjs tests/phase-2-runbook.test.mjs
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build static artifact
+        run: npm run build:static
+
+      - name: Run local browser smoke tests
+        run: npx playwright test
+
+      - name: Tear down lobby compose stack
+        if: always()
+        run: docker compose down --remove-orphans

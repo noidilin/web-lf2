@@ -22,7 +22,6 @@ concurrency:
 
 env:
   AWS_REGION: ap-northeast-1
-  NODE_VERSION: "22"
 
 jobs:
   deploy-lobby:
@@ -30,30 +29,6 @@ jobs:
     environment: dev
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install root dependencies
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.9 --activate
-          pnpm install --frozen-lockfile
-
-      - name: Install lobby dependencies
-        working-directory: apps/lobby
-        run: npm ci
-
-      - name: Run lobby image smoke test
-        run: npm run test:lobby
-
-      - name: Run lobby hardening and infrastructure tests
-        run: node --test tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs
-
-      - name: Tear down lobby compose stack
-        if: always()
-        run: docker compose down --remove-orphans
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b

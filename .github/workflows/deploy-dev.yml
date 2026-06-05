@@ -22,7 +22,6 @@ on:
       - 'infra/catalog/units/static-site/**'
       - 'infra/live/dev/terragrunt.stack.hcl'
       - 'infra/live/root.hcl'
-      - 'tests/**'
       - '.github/workflows/deploy-dev.yml'
       - '.github/workflows/deploy-lobby-dev.yml'
       - '.github/workflows/deploy-observability-dev.yml'

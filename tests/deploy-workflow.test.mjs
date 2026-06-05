@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
+const ciWorkflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const deployDevWorkflow = await readFile(new URL('../.github/workflows/deploy-dev.yml', import.meta.url), 'utf8');
 const staticDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-static-dev.yml', import.meta.url), 'utf8');
 const lobbyDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-dev.yml', import.meta.url), 'utf8');
@@ -11,6 +12,32 @@ const staticProdWorkflow = await readFile(new URL('../.github/workflows/deploy-s
 const lobbyProdWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-prod.yml', import.meta.url), 'utf8');
 const observabilityDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-dev.yml', import.meta.url), 'utf8');
 const observabilityProdWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-prod.yml', import.meta.url), 'utf8');
+
+test('CI workflow owns local test concerns before deployment', () => {
+  assert.match(ciWorkflow, /name: CI/);
+  assert.match(ciWorkflow, /pull_request:/);
+  assert.match(ciWorkflow, /static-tests:/);
+  assert.match(ciWorkflow, /lobby-tests:/);
+  assert.match(ciWorkflow, /workflow-tests:/);
+  assert.match(ciWorkflow, /browser-smoke:/);
+  assert.match(ciWorkflow, /npm run build:static/);
+  assert.match(ciWorkflow, /npm run check:static/);
+  assert.match(ciWorkflow, /tests\/build-static\.test\.mjs tests\/check-static\.test\.mjs/);
+  assert.match(ciWorkflow, /npm run test:lobby/);
+  assert.match(ciWorkflow, /tests\/lobby-hardening\.test\.mjs tests\/lobby-infrastructure\.test\.mjs/);
+  assert.match(ciWorkflow, /npx playwright test/);
+
+  for (const workflow of [lobbyDeployWorkflow, lobbyProdWorkflow]) {
+    assert.doesNotMatch(workflow, /npm run test:lobby/);
+    assert.doesNotMatch(workflow, /tests\/lobby-hardening\.test\.mjs/);
+    assert.doesNotMatch(workflow, /Install lobby dependencies/);
+  }
+
+  for (const workflow of [staticDeployWorkflow, staticProdWorkflow]) {
+    assert.doesNotMatch(workflow, /tests\/build-static\.test\.mjs tests\/check-static\.test\.mjs/);
+    assert.doesNotMatch(workflow, /npm run check:static/);
+  }
+});
 
 test('dev deployment orchestrator models lobby before static dependency', () => {
   assert.match(deployDevWorkflow, /name: Deploy Dev/);

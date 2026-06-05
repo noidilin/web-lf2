@@ -83,12 +83,6 @@ jobs:
           LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
         run: npm run build:static
 
-      - name: Check static artifact
-        run: npm run check:static
-
-      - name: Run static unit tests
-        run: node --test tests/build-static.test.mjs tests/check-static.test.mjs
-
       - name: Terragrunt apply static site
         working-directory: infra/live/prod
         run: terragrunt stack run apply --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include
