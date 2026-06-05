@@ -199,13 +199,16 @@ Lobby deployment flow:
 ```txt
 checkout
   -> run lobby tests
-  -> build Docker image
-  -> push image to ECR
-  -> update ECS task definition
+  -> build Docker image once for the selected commit
+  -> push immutable sha-<git sha> image to ECR
+  -> optionally copy the selected ECR manifest to a dev/prod observability alias
+  -> update ECS task definition with the immutable SHA tag or digest
   -> deploy ECS service
   -> wait for service stability
   -> run health and integration tests
 ```
+
+The mutable `dev` and `prod` ECR aliases are inspection labels only. ECS deployments should remain anchored on immutable SHA tags or image digests so production promotion does not rebuild or depend on a moving alias.
 
 Security requirements:
 

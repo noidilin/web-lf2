@@ -5,6 +5,7 @@ import test from 'node:test';
 const lobbyMain = await readFile(new URL('../infra/catalog/modules/lobby-service/main.tf', import.meta.url), 'utf8');
 const lobbyVars = await readFile(new URL('../infra/catalog/modules/lobby-service/variables.tf', import.meta.url), 'utf8');
 const lobbyBootstrapMain = await readFile(new URL('../infra/catalog/modules/lobby-bootstrap/main.tf', import.meta.url), 'utf8');
+const deploymentIdentityMain = await readFile(new URL('../infra/catalog/modules/deployment-identity/main.tf', import.meta.url), 'utf8');
 const lobbyUnit = await readFile(new URL('../infra/catalog/units/lobby-service/terragrunt.hcl', import.meta.url), 'utf8');
 const devStack = await readFile(new URL('../infra/live/dev/terragrunt.stack.hcl', import.meta.url), 'utf8');
 const prodStack = await readFile(new URL('../infra/live/prod/terragrunt.stack.hcl', import.meta.url), 'utf8');
@@ -12,7 +13,9 @@ const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby
 
 test('lobby infrastructure exposes F.Lobby through ECS Fargate behind HTTPS ALB', () => {
   assert.match(lobbyBootstrapMain, /aws_ecr_repository"\s+"lobby"/);
-  assert.match(lobbyBootstrapMain, /image_tag_mutability\s+=\s+"IMMUTABLE"/);
+  assert.match(lobbyBootstrapMain, /image_tag_mutability\s+=\s+"IMMUTABLE_WITH_EXCLUSION"/);
+  assert.match(lobbyBootstrapMain, /image_tag_mutability_exclusion_filter[\s\S]+filter\s+=\s+"dev"[\s\S]+filter_type\s+=\s+"WILDCARD"/);
+  assert.match(lobbyBootstrapMain, /image_tag_mutability_exclusion_filter[\s\S]+filter\s+=\s+"prod"[\s\S]+filter_type\s+=\s+"WILDCARD"/);
   assert.doesNotMatch(lobbyMain, /aws_ecr_repository"\s+"lobby"/);
   assert.match(lobbyMain, /aws_ecs_cluster"\s+"lobby"/);
   assert.match(lobbyMain, /aws_ecs_task_definition"\s+"lobby"/);
@@ -35,6 +38,24 @@ test('lobby infrastructure uses the health endpoint and safe ECS deployment defa
   assert.match(lobbyMain, /deregistration_delay\s+=\s+30/);
   assert.match(lobbyMain, /aws_cloudwatch_log_group"\s+"lobby"/);
   assert.match(lobbyMain, /AmazonECSTaskExecutionRolePolicy/);
+});
+
+test('lobby ECR lifecycle keeps SHA cleanup safe for environment aliases', () => {
+  assert.match(lobbyBootstrapMain, /aws_ecr_lifecycle_policy"\s+"lobby"/);
+  assert.match(lobbyBootstrapMain, /description\s+=\s+"Protect environment alias images from SHA cleanup"/);
+  assert.match(lobbyBootstrapMain, /tagPrefixList\s+=\s+\["dev", "prod"\]/);
+  assert.match(lobbyBootstrapMain, /description\s+=\s+"Keep the most recent 20 SHA-tagged lobby images"/);
+  assert.match(lobbyBootstrapMain, /tagPrefixList\s+=\s+\["sha-"\]/);
+  assert.match(lobbyBootstrapMain, /countNumber\s+=\s+20/);
+  assert.match(lobbyBootstrapMain, /tagStatus\s+=\s+"untagged"/);
+  assert.match(lobbyBootstrapMain, /countUnit\s+=\s+"days"/);
+});
+
+test('deployment identity can manage ECR aliases and tag-mutability exclusions', () => {
+  assert.match(deploymentIdentityMain, /"ecr:BatchGetImage"/);
+  assert.match(deploymentIdentityMain, /"ecr:PutImage"/);
+  assert.match(deploymentIdentityMain, /"ecr:PutImageTagMutability"/);
+  assert.match(deploymentIdentityMain, /"ecr:PutLifecyclePolicy"/);
 });
 
 test('lobby module consumes networking outputs instead of public task networking', () => {
@@ -67,6 +88,8 @@ test('deploy lobby workflow builds, pushes, rolls out, and checks the deployed c
   assert.match(deployWorkflow, /aws ecr get-login-password/);
   assert.match(deployWorkflow, /aws ecr describe-images/);
   assert.match(deployWorkflow, /docker push/);
+  assert.match(deployWorkflow, /aws ecr batch-get-image/);
+  assert.match(deployWorkflow, /aws ecr put-image[\s\S]+--image-tag dev/);
   assert.match(deployWorkflow, /terragrunt stack run apply/);
   assert.doesNotMatch(deployWorkflow, /:latest/);
   assert.doesNotMatch(deployWorkflow, /aws ecs update-service/);

@@ -21,6 +21,21 @@ test('Phase 2 runbook covers dev and prod deployments', () => {
   assert.match(runbook, /Deploy Static Site Prod/);
 });
 
+test('Phase 2 runbook explains build once, promote many release provenance', () => {
+  assert.match(runbook, /## Release artifact provenance/);
+  assert.match(runbook, /build once, promote many/);
+  assert.match(runbook, /immutable canonical tag `sha-\$\{github\.sha\}`/);
+  assert.match(runbook, /ECS task definitions receive `LOBBY_IMAGE_TAG` and run the selected SHA-tagged image/);
+  assert.match(runbook, /`aws ecr batch-get-image` and `aws ecr put-image`/);
+  assert.match(runbook, /observability labels/);
+  assert.match(runbook, /Do not use environment aliases as deployment inputs, rollback identifiers, or the ECS source of truth/);
+  assert.match(runbook, /lifecycle policy retains recent `sha-` releases/);
+
+  assert.doesNotMatch(runbook, /aliases? (?:are|is) (?:the )?source of truth/i);
+  assert.doesNotMatch(runbook, /ECS (?:runs|deploys).*:(?:dev|prod)\b/i);
+  assert.doesNotMatch(runbook, /task definitions? (?:use|uses|select|selects).*:(?:dev|prod)\b/i);
+});
+
 test('Phase 2 runbook covers local and deployed smoke tests', () => {
   assert.match(runbook, /## Local smoke tests/);
   assert.match(runbook, /npm run build:static/);

@@ -112,6 +112,28 @@ jobs:
 
           echo "Verified existing F.Lobby image ${{ steps.outputs.outputs.ecr_repository_url }}:${LOBBY_IMAGE_TAG}@$DIGEST"
 
+      - name: Promote lobby image alias to prod
+        run: |
+          set -euo pipefail
+
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-ids "imageTag=${LOBBY_IMAGE_TAG}" \
+            --query 'images[0].imageManifest' \
+            --output text)
+
+          if [[ -z "$MANIFEST" || "$MANIFEST" == "None" ]]; then
+            echo "ECR did not return a manifest for F.Lobby image tag '$LOBBY_IMAGE_TAG'" >&2
+            exit 1
+          fi
+
+          aws ecr put-image \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-tag prod \
+            --image-manifest "$MANIFEST" >/dev/null
+
+          echo "Updated mutable ECR observability alias prod -> $LOBBY_IMAGE_TAG"
+
       - name: Terragrunt apply lobby service
         working-directory: infra/live/prod
         run: |
