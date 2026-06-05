@@ -80,16 +80,42 @@ test('dev deployment orchestrator models lobby before static dependency', () => 
   assert.doesNotMatch(deployDevWorkflow, /secrets: inherit/);
 });
 
-test('lobby deployment workflows select immutable SHA-tagged artifacts', () => {
-  for (const workflow of [lobbyDeployWorkflow, lobbyProdWorkflow]) {
-    assert.match(workflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
-    assert.match(workflow, /--tag "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
-    assert.match(workflow, /aws ecr describe-images/);
-    assert.match(workflow, /docker push "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
-    assert.doesNotMatch(workflow, /:latest/);
-    assert.doesNotMatch(workflow, /aws ecs update-service/);
-    assert.doesNotMatch(workflow, /force-new-deployment/);
-  }
+test('dev lobby deployment builds and pushes immutable SHA-tagged artifacts', () => {
+  assert.match(lobbyDeployWorkflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
+  assert.match(lobbyDeployWorkflow, /--tag "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
+  assert.match(lobbyDeployWorkflow, /aws ecr describe-images/);
+  assert.match(lobbyDeployWorkflow, /docker push "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
+  assert.doesNotMatch(lobbyDeployWorkflow, /:latest/);
+  assert.doesNotMatch(lobbyDeployWorkflow, /aws ecs update-service/);
+  assert.doesNotMatch(lobbyDeployWorkflow, /force-new-deployment/);
+});
+
+test('prod lobby promotion verifies and deploys an existing SHA-tagged artifact without rebuilding', () => {
+  assert.match(deployProdWorkflow, /workflow_dispatch:[\s\S]+inputs:[\s\S]+lobby_image_tag:/);
+  assert.match(deployProdWorkflow, /lobby_image_tag: \$\{\{ inputs\.lobby_image_tag \}\}/);
+
+  assert.match(lobbyProdWorkflow, /workflow_call:[\s\S]+lobby_image_tag:/);
+  assert.match(lobbyProdWorkflow, /workflow_dispatch:[\s\S]+lobby_image_tag:/);
+  assert.match(lobbyProdWorkflow, /LOBBY_IMAGE_TAG:\s+\$\{\{ inputs\.lobby_image_tag \|\| format\('sha-\{0\}', github\.sha\) \}\}/);
+  assert.match(lobbyProdWorkflow, /Validate lobby image tag/);
+  assert.match(lobbyProdWorkflow, /\^sha-\[0-9a-f\]\{40\}\$/);
+  assert.match(lobbyProdWorkflow, /Verify promoted image exists in ECR/);
+  assert.match(lobbyProdWorkflow, /aws ecr describe-images[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"/);
+  assert.match(lobbyProdWorkflow, /Terragrunt apply lobby service/);
+  assert.match(lobbyProdWorkflow, /aws ecs wait services-stable/);
+  assert.match(lobbyProdWorkflow, /Run deployed lobby contract checks/);
+  assert.doesNotMatch(lobbyProdWorkflow, /docker build/);
+  assert.doesNotMatch(lobbyProdWorkflow, /docker push/);
+  assert.doesNotMatch(lobbyProdWorkflow, /aws ecr get-login-password/);
+  assert.doesNotMatch(lobbyProdWorkflow, /:latest/);
+  assert.doesNotMatch(lobbyProdWorkflow, /aws ecs update-service/);
+  assert.doesNotMatch(lobbyProdWorkflow, /force-new-deployment/);
+
+  const verifyIndex = lobbyProdWorkflow.indexOf('- name: Verify promoted image exists in ECR');
+  const applyIndex = lobbyProdWorkflow.indexOf('- name: Terragrunt apply lobby service');
+  assert.notEqual(verifyIndex, -1);
+  assert.notEqual(applyIndex, -1);
+  assert.ok(verifyIndex < applyIndex);
 });
 
 test('dev deploy leaves keep standalone dispatches queued', () => {

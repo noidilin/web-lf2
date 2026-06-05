@@ -8,7 +8,17 @@ on:
         required: false
         type: boolean
         default: false
+      lobby_image_tag:
+        description: 'Optional canonical sha-<40 hex> F.Lobby image tag to promote. Defaults to selected ref SHA.'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
+    inputs:
+      lobby_image_tag:
+        description: 'Optional canonical sha-<40 hex> F.Lobby image tag to promote. Defaults to selected ref SHA.'
+        required: false
+        type: string
 
 permissions:
   id-token: write
@@ -22,7 +32,7 @@ concurrency:
 
 env:
   AWS_REGION: ap-northeast-1
-  LOBBY_IMAGE_TAG: sha-${{ github.sha }}
+  LOBBY_IMAGE_TAG: ${{ inputs.lobby_image_tag || format('sha-{0}', github.sha) }}
 
 jobs:
   deploy-lobby-prod:
@@ -30,6 +40,17 @@ jobs:
     environment: prod
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Validate lobby image tag
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$LOBBY_IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
+            echo "lobby_image_tag must be canonical sha-<40 lowercase hex>; got '$LOBBY_IMAGE_TAG'" >&2
+            exit 1
+          fi
+
+          echo "Promoting F.Lobby image tag $LOBBY_IMAGE_TAG"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
@@ -70,28 +91,26 @@ jobs:
 
           echo "ecr_repository_name=$ECR_NAME" >> "$GITHUB_OUTPUT"
           echo "ecr_repository_url=$ECR_URL" >> "$GITHUB_OUTPUT"
-          echo "ecr_registry=${ECR_URL%/*}" >> "$GITHUB_OUTPUT"
 
-      - name: Build lobby image
-        run: |
-          docker build \
-            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:${{ env.LOBBY_IMAGE_TAG }}" \
-            apps/lobby
-
-      - name: Push lobby image
+      - name: Verify promoted image exists in ECR
         run: |
           set -euo pipefail
 
-          aws ecr get-login-password --region "${AWS_REGION}" \
-            | docker login --username AWS --password-stdin "${{ steps.outputs.outputs.ecr_registry }}"
-
-          if aws ecr describe-images \
+          if ! DIGEST=$(aws ecr describe-images \
             --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
-            --image-ids "imageTag=${{ env.LOBBY_IMAGE_TAG }}" >/dev/null 2>&1; then
-            echo "Reusing existing immutable lobby image tag ${{ env.LOBBY_IMAGE_TAG }}"
-          else
-            docker push "${{ steps.outputs.outputs.ecr_repository_url }}:${{ env.LOBBY_IMAGE_TAG }}"
+            --image-ids "imageTag=${LOBBY_IMAGE_TAG}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text); then
+            echo "F.Lobby image tag '$LOBBY_IMAGE_TAG' was not found in ECR repository '${{ steps.outputs.outputs.ecr_repository_name }}'" >&2
+            exit 1
           fi
+
+          if [[ -z "$DIGEST" || "$DIGEST" == "None" ]]; then
+            echo "ECR did not return a digest for F.Lobby image tag '$LOBBY_IMAGE_TAG'" >&2
+            exit 1
+          fi
+
+          echo "Verified existing F.Lobby image ${{ steps.outputs.outputs.ecr_repository_url }}:${LOBBY_IMAGE_TAG}@$DIGEST"
 
       - name: Terragrunt apply lobby service
         working-directory: infra/live/prod
