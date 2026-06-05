@@ -45,6 +45,20 @@ Do not add long-lived AWS credentials to the repository or GitHub secrets. CI/CD
 - `devops-web-lf2-{env}-github-plan` for pull request plans.
 - `devops-web-lf2-{env}-github-apply` for environment deployment.
 
+## Release artifact provenance
+
+F.Lobby image delivery follows a build once, promote many model in AWS terms:
+
+1. CI and the dev lobby deployment build the production container for a specific commit.
+2. ECR stores that release artifact under the immutable canonical tag `sha-${github.sha}`.
+3. ECS task definitions receive `LOBBY_IMAGE_TAG` and run the selected SHA-tagged image, not a mutable environment tag.
+4. Dev and prod workflows optionally update mutable ECR aliases (`dev` and `prod`) by copying the selected SHA image manifest with `aws ecr batch-get-image` and `aws ecr put-image`.
+5. Deployed lobby contract checks prove the live ALB endpoint still serves `/healthz`, `/protocol`, and the preserved `F.Lobby 0.1` routes after ECS reaches stability.
+
+Treat `sha-<40 lowercase hex>` tags and image digests as release identifiers. Treat `dev` and `prod` aliases as human-readable observability labels for quick ECR inspection only. Do not use environment aliases as deployment inputs, rollback identifiers, or the ECS source of truth.
+
+The lobby ECR repository rejects rewrites for SHA tags while allowing only the `dev` and `prod` alias tags to move. Its lifecycle policy retains recent `sha-` releases, protects currently aliased images from SHA cleanup, and removes untagged image leftovers.
+
 ## Validate and plan infrastructure changes
 
 Run these checks before opening or merging infrastructure changes:
@@ -105,9 +119,10 @@ Local lobby validation now belongs to `.github/workflows/ci.yml`; the deploy wor
 1. Assumes `devops-web-lf2-dev-github-apply` through OIDC.
 2. Applies `networking` and `lobby-bootstrap`.
 3. Builds the `apps/lobby` image with the canonical `sha-${github.sha}` tag and publishes only that tag to ECR.
-4. Applies `lobby-service` with `LOBBY_IMAGE_TAG` so the ECS task definition selects the SHA-tagged image.
-5. Waits for ECS service stability after the task-definition update.
-6. Runs `tests/deployed-lobby-contract.test.mjs` against the deployed lobby URL.
+4. Copies the selected SHA image manifest to the mutable `dev` ECR alias for observability; this is a server-side ECR manifest copy, not a rebuild, local retag, or deployment source change.
+5. Applies `lobby-service` with `LOBBY_IMAGE_TAG` so the ECS task definition selects the SHA-tagged image.
+6. Waits for ECS service stability after the task-definition update.
+7. Runs `tests/deployed-lobby-contract.test.mjs` against the deployed lobby URL.
 
 ### Dev static deployment details
 
@@ -128,10 +143,13 @@ Local static checks now belong to `.github/workflows/ci.yml`; the deploy workflo
 Production is intentionally manual:
 
 1. Confirm dev has deployed successfully from the same commit or an equivalent commit.
-2. Open GitHub Actions and dispatch `Deploy Prod`.
-3. Approve the GitHub `prod` environment when prompted.
-4. The workflow deploys lobby, static, and observability in the same order as dev, using `devops-web-lf2-prod-github-apply`.
-5. Confirm deployed lobby contract and Playwright smoke jobs pass.
+2. Choose the exact canonical `sha-<40 lowercase hex>` lobby image tag to promote. If the `Deploy Prod` input is left blank, the workflow derives `sha-${github.sha}` from the selected ref.
+3. Open GitHub Actions and dispatch `Deploy Prod`.
+4. Approve the GitHub `prod` environment when prompted.
+5. The workflow verifies that the selected SHA-tagged image already exists in ECR, copies its manifest to the mutable `prod` ECR alias for observability, and deploys lobby, static, and observability in the same order as dev using `devops-web-lf2-prod-github-apply`.
+6. Confirm deployed lobby contract and Playwright smoke jobs pass.
+
+Production promotion does not build, push, or locally retag the lobby image. ECS continues to deploy the immutable `LOBBY_IMAGE_TAG`; the `prod` alias is only a readable pointer for ECR inspection.
 
 Standalone production workflows (`Deploy Lobby Prod`, `Deploy Static Site Prod`, and `Deploy Observability Prod`) are available for targeted recovery, but prefer the orchestrated `Deploy Prod` workflow for normal releases so the game artifact is built against the current deployed lobby URL.
 
@@ -246,7 +264,7 @@ Alarm notifications are sent through environment-specific SNS topics in `ap-nort
 2. Run `curl -i "$LOBBY_BASE_URL/healthz"` and `curl -i "$LOBBY_BASE_URL/protocol"`.
 3. Inspect ECS service events for stopped tasks, image pull errors, failed health checks, or rollout failures.
 4. Inspect the F.Lobby log group from the dashboard's Logs Insights widget.
-5. Rerun the relevant `Deploy Lobby {Dev,Prod}` workflow to rebuild/push the image and force a new ECS deployment.
+5. Rerun `Deploy Lobby Dev` to rebuild and publish the current commit's SHA-tagged image, or rerun `Deploy Lobby Prod` with a known-good SHA tag to promote an existing image. Do not recover production by pointing ECS at the `prod` alias.
 
 ### Deployed game cannot discover lobby
 

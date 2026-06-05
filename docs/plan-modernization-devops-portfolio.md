@@ -440,7 +440,7 @@ checkout
 - Use GitHub Actions OIDC for AWS access.
 - Avoid long-lived AWS keys.
 - Separate dev/prod environments with approvals for prod.
-- ECR hardening: lobby deploys publish SHA-only task-definition images and the lobby ECR repository uses `IMMUTABLE` tags for stronger provenance and rollback guarantees.
+- ECR hardening: lobby deploys publish SHA-only task-definition images, ECR rejects SHA tag rewrites, and the optional `dev`/`prod` aliases are manifest-copy observability labels rather than deployment inputs.
 
 ## Value
 

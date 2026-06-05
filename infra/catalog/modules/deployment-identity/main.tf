@@ -434,6 +434,7 @@ resource "aws_iam_policy" "github_apply_lobby" {
           "ecr:ListTagsForResource",
           "ecr:PutImage",
           "ecr:PutImageScanningConfiguration",
+          "ecr:PutImageTagMutability",
           "ecr:PutLifecyclePolicy",
           "ecr:TagResource",
           "ecr:UntagResource",

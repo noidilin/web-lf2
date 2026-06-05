@@ -90,6 +90,22 @@ test('dev lobby deployment builds and pushes immutable SHA-tagged artifacts', ()
   assert.doesNotMatch(lobbyDeployWorkflow, /force-new-deployment/);
 });
 
+test('dev and prod ECR aliases are manifest-copy observability labels', () => {
+  assertEnvironmentAliasCopy(lobbyDeployWorkflow, {
+    alias: 'dev',
+    selectedImageId: /--image-ids "imageTag=\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/,
+  });
+  assertEnvironmentAliasCopy(lobbyProdWorkflow, {
+    alias: 'prod',
+    selectedImageId: /--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"/,
+  });
+
+  for (const workflow of [lobbyDeployWorkflow, lobbyProdWorkflow]) {
+    assert.doesNotMatch(workflow, /docker tag/);
+    assert.doesNotMatch(workflow, /docker push[\s\S]+:(?:dev|prod)\b/);
+  }
+});
+
 test('prod lobby promotion verifies and deploys an existing SHA-tagged artifact without rebuilding', () => {
   assert.match(deployProdWorkflow, /workflow_dispatch:[\s\S]+inputs:[\s\S]+lobby_image_tag:/);
   assert.match(deployProdWorkflow, /lobby_image_tag: \$\{\{ inputs\.lobby_image_tag \}\}/);
@@ -101,6 +117,9 @@ test('prod lobby promotion verifies and deploys an existing SHA-tagged artifact 
   assert.match(lobbyProdWorkflow, /\^sha-\[0-9a-f\]\{40\}\$/);
   assert.match(lobbyProdWorkflow, /Verify promoted image exists in ECR/);
   assert.match(lobbyProdWorkflow, /aws ecr describe-images[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"/);
+  assert.match(lobbyProdWorkflow, /Promote lobby image alias to prod/);
+  assert.match(lobbyProdWorkflow, /aws ecr batch-get-image[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"/);
+  assert.match(lobbyProdWorkflow, /aws ecr put-image[\s\S]+--image-tag prod[\s\S]+--image-manifest "\$MANIFEST"/);
   assert.match(lobbyProdWorkflow, /Terragrunt apply lobby service/);
   assert.match(lobbyProdWorkflow, /aws ecs wait services-stable/);
   assert.match(lobbyProdWorkflow, /Run deployed lobby contract checks/);
@@ -201,6 +220,23 @@ test('prod reusable deployments target prod stack, roles, endpoints, and protect
   assert.match(staticProdWorkflow, /npx playwright test --config playwright\.deployed\.config\.mjs/);
   assert.match(lobbyProdWorkflow, /Run deployed lobby contract checks/);
 });
+
+function assertEnvironmentAliasCopy(workflow, { alias, selectedImageId }) {
+  assert.match(workflow, new RegExp(`Promote lobby image alias to ${alias}`));
+  assert.match(workflow, /aws ecr batch-get-image/);
+  assert.match(workflow, selectedImageId);
+  assert.match(workflow, /--query 'images\[0\]\.imageManifest'/);
+  assert.match(workflow, /aws ecr put-image/);
+  assert.match(workflow, new RegExp(`--image-tag ${alias}\\b`));
+  assert.match(workflow, /--image-manifest "\$MANIFEST"/);
+  assert.match(workflow, new RegExp(`Updated mutable ECR observability alias ${alias} ->`));
+
+  const aliasIndex = workflow.indexOf(`- name: Promote lobby image alias to ${alias}`);
+  const applyIndex = workflow.indexOf('- name: Terragrunt apply lobby service');
+  assert.notEqual(aliasIndex, -1);
+  assert.notEqual(applyIndex, -1);
+  assert.ok(aliasIndex < applyIndex);
+}
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
