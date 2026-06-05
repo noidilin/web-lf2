@@ -2,3 +2,5 @@ node_modules
 npm-debug.log
 Dockerfile
 .dockerignore
+.DS_Store
+.f-lobby-test-stage-success
