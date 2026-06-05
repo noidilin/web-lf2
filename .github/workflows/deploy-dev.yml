@@ -41,11 +41,9 @@ jobs:
     uses: ./.github/workflows/deploy-lobby-dev.yml
     with:
       orchestrated: true
-    secrets: inherit
 
   deploy-static-dev:
     needs: deploy-lobby-dev
     uses: ./.github/workflows/deploy-static-dev.yml
     with:
       orchestrated: true
-    secrets: inherit

@@ -24,7 +24,6 @@ env:
   AWS_REGION: ap-northeast-1
   NODE_VERSION: "22"
   LOBBY_NAME: Prod F.Lobby
-  LOBBY_BASE_URL: https://lf2-lobby.noidilin.dev
 
 jobs:
   deploy-static-prod:
@@ -32,6 +31,8 @@ jobs:
     environment: prod
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -43,7 +44,33 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
+        with:
+          role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-prod-github-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a
+
+      - name: Get lobby URL
+        id: lobby
+        working-directory: infra/live/prod
+        run: |
+          set -euo pipefail
+
+          LOBBY_URL=$(terragrunt stack output --format raw lobby-service.lobby_url --non-interactive)
+
+          if [[ -z "$LOBBY_URL" ]]; then
+            echo "lobby-service lobby_url output is empty" >&2
+            exit 1
+          fi
+
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
       - name: Build static artifact
+        env:
+          LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
         run: npm run build:static
 
       - name: Check static artifact
@@ -51,15 +78,6 @@ jobs:
 
       - name: Run static unit tests
         run: node --test tests/build-static.test.mjs tests/check-static.test.mjs
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-prod-github-apply
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Terraform and Terragrunt
-        uses: gruntwork-io/terragrunt-action@v3
 
       - name: Terragrunt apply static site
         working-directory: infra/live/prod
@@ -101,7 +119,7 @@ jobs:
         if: steps.outputs.outputs.game_url != ''
         timeout-minutes: 30
         env:
-          LOBBY_BASE_URL: ${{ env.LOBBY_BASE_URL }}
+          LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
         run: |
           set -euo pipefail
 
@@ -129,5 +147,5 @@ jobs:
         if: steps.outputs.outputs.game_url != ''
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.outputs.outputs.game_url }}
-          LOBBY_BASE_URL: ${{ env.LOBBY_BASE_URL }}
+          LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
         run: npx playwright test --config playwright.deployed.config.mjs
