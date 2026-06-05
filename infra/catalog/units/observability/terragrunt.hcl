@@ -23,6 +23,7 @@ dependency "static_site" {
   config_path = "../static-site"
 
   mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     cloudfront_distribution_id = "E0000000000000"
   }
@@ -32,6 +33,7 @@ dependency "lobby_service" {
   config_path = "../lobby-service"
 
   mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+  mock_outputs_merge_strategy_with_state  = "shallow"
   mock_outputs = {
     alb_arn_suffix          = "app/devops-web-lf2-dev-lobby/0000000000000000"
     target_group_arn_suffix = "targetgroup/devops-web-lf2-dev-lobby/0000000000000000"

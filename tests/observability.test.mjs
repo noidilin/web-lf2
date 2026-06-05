@@ -50,6 +50,7 @@ test('observability unit consumes static and lobby deployment outputs', () => {
   assert.match(observabilityVars, /variable "ecs_cluster_name"/);
   assert.match(observabilityUnit, /dependency "static_site"/);
   assert.match(observabilityUnit, /dependency "lobby_service"/);
+  assert.match(observabilityUnit, /mock_outputs_merge_strategy_with_state\s+=\s+"shallow"/);
   assert.match(observabilityUnit, /cloudfront_distribution_id\s+=\s+dependency\.static_site\.outputs\.cloudfront_distribution_id/);
   assert.match(observabilityUnit, /alb_arn_suffix\s+=\s+dependency\.lobby_service\.outputs\.alb_arn_suffix/);
 });
