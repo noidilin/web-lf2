@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 const ciWorkflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const rootPackage = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+const lobbyDockerfile = await readFile(new URL('../apps/lobby/Dockerfile', import.meta.url), 'utf8');
 const deployDevWorkflow = await readFile(new URL('../.github/workflows/deploy-dev.yml', import.meta.url), 'utf8');
 const staticDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-static-dev.yml', import.meta.url), 'utf8');
 const lobbyDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-dev.yml', import.meta.url), 'utf8');
@@ -12,6 +14,8 @@ const staticProdWorkflow = await readFile(new URL('../.github/workflows/deploy-s
 const lobbyProdWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-prod.yml', import.meta.url), 'utf8');
 const observabilityDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-dev.yml', import.meta.url), 'utf8');
 const observabilityProdWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-prod.yml', import.meta.url), 'utf8');
+const lobbyTestMarker = '/tmp/f-lobby-test-stage-success';
+const lobbyProductionMarker = '/app/.f-lobby-test-stage-success';
 
 test('CI workflow owns local test concerns before deployment', () => {
   assert.match(ciWorkflow, /name: CI/);
@@ -23,6 +27,7 @@ test('CI workflow owns local test concerns before deployment', () => {
   assert.match(ciWorkflow, /npm run build:static/);
   assert.match(ciWorkflow, /npm run check:static/);
   assert.match(ciWorkflow, /tests\/build-static\.test\.mjs tests\/check-static\.test\.mjs/);
+  assert.match(ciWorkflow, /npm run test:lobby:image/);
   assert.match(ciWorkflow, /npm run test:lobby/);
   assert.match(ciWorkflow, /tests\/lobby-hardening\.test\.mjs tests\/lobby-infrastructure\.test\.mjs/);
   assert.match(ciWorkflow, /npx playwright test/);
@@ -37,6 +42,29 @@ test('CI workflow owns local test concerns before deployment', () => {
     assert.doesNotMatch(workflow, /tests\/build-static\.test\.mjs tests\/check-static\.test\.mjs/);
     assert.doesNotMatch(workflow, /npm run check:static/);
   }
+});
+
+test('lobby Dockerfile exposes a test-gated production image', () => {
+  assert.match(rootPackage, /"test:lobby:image": "docker build --target test apps\/lobby"/);
+  assert.match(lobbyDockerfile, /FROM runtime-deps AS test/);
+  assert.match(lobbyDockerfile, /node --check index\.js/);
+  assert.match(lobbyDockerfile, /node --check lobby\.js/);
+  assert.match(lobbyDockerfile, /\/healthz/);
+  assert.match(lobbyDockerfile, /\/protocol/);
+  assert.match(lobbyDockerfile, /FROM runtime-deps AS production/);
+  assert.match(lobbyDockerfile, new RegExp(`> ${escapeRegExp(lobbyTestMarker)}`));
+  assert.match(
+    lobbyDockerfile,
+    new RegExp(`COPY --from=test ${escapeRegExp(lobbyTestMarker)} ${escapeRegExp(lobbyProductionMarker)}`),
+  );
+  assert.match(lobbyDockerfile, new RegExp(`test -s ${escapeRegExp(lobbyProductionMarker)}`));
+
+  const markerIndex = lobbyDockerfile.indexOf(lobbyTestMarker);
+  assert.ok(lobbyDockerfile.indexOf('node --check index.js') < markerIndex);
+  assert.ok(lobbyDockerfile.indexOf('node --check lobby.js') < markerIndex);
+  assert.ok(lobbyDockerfile.indexOf('/healthz') < markerIndex);
+  assert.ok(lobbyDockerfile.indexOf('/protocol') < markerIndex);
+  assert.ok(lobbyDockerfile.indexOf('FROM runtime-deps AS production') < lobbyDockerfile.indexOf('COPY --from=test'));
 });
 
 test('dev deployment orchestrator models lobby before static dependency', () => {
@@ -135,3 +163,7 @@ test('prod reusable deployments target prod stack, roles, endpoints, and protect
   assert.match(staticProdWorkflow, /npx playwright test --config playwright\.deployed\.config\.mjs/);
   assert.match(lobbyProdWorkflow, /Run deployed lobby contract checks/);
 });
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
