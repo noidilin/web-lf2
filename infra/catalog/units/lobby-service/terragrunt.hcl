@@ -54,6 +54,7 @@ inputs = {
   hosted_zone_name      = values.hosted_zone_name
   lobby_domain          = values.lobby_domain
   allowed_origins       = values.allowed_origins
+  image_tag             = values.image_tag
   ecr_repository_url    = dependency.lobby_bootstrap.outputs.ecr_repository_url
   vpc_id                = dependency.networking.outputs.vpc_id
   public_subnet_ids     = dependency.networking.outputs.public_subnet_ids

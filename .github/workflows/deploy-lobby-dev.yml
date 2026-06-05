@@ -22,6 +22,7 @@ concurrency:
 
 env:
   AWS_REGION: ap-northeast-1
+  LOBBY_IMAGE_TAG: sha-${{ github.sha }}
 
 jobs:
   deploy-lobby:
@@ -60,28 +61,37 @@ jobs:
           set -euo pipefail
 
           ECR_URL=$(terragrunt stack output --format raw lobby-bootstrap.ecr_repository_url --non-interactive --no-stack-generate)
+          ECR_NAME=$(terragrunt stack output --format raw lobby-bootstrap.ecr_repository_name --non-interactive --no-stack-generate)
 
-          if [[ -z "$ECR_URL" ]]; then
-            echo "lobby-bootstrap ecr_repository_url output is empty" >&2
+          if [[ -z "$ECR_URL" || -z "$ECR_NAME" ]]; then
+            echo "lobby-bootstrap ECR outputs are incomplete" >&2
             exit 1
           fi
 
+          echo "ecr_repository_name=$ECR_NAME" >> "$GITHUB_OUTPUT"
           echo "ecr_repository_url=$ECR_URL" >> "$GITHUB_OUTPUT"
           echo "ecr_registry=${ECR_URL%/*}" >> "$GITHUB_OUTPUT"
 
       - name: Build lobby image
         run: |
           docker build \
-            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:${{ github.sha }}" \
-            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:latest" \
+            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:${{ env.LOBBY_IMAGE_TAG }}" \
             apps/lobby
 
       - name: Push lobby image
         run: |
+          set -euo pipefail
+
           aws ecr get-login-password --region "${AWS_REGION}" \
             | docker login --username AWS --password-stdin "${{ steps.outputs.outputs.ecr_registry }}"
-          docker push "${{ steps.outputs.outputs.ecr_repository_url }}:${{ github.sha }}"
-          docker push "${{ steps.outputs.outputs.ecr_repository_url }}:latest"
+
+          if aws ecr describe-images \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-ids "imageTag=${{ env.LOBBY_IMAGE_TAG }}" >/dev/null 2>&1; then
+            echo "Reusing existing immutable lobby image tag ${{ env.LOBBY_IMAGE_TAG }}"
+          else
+            docker push "${{ steps.outputs.outputs.ecr_repository_url }}:${{ env.LOBBY_IMAGE_TAG }}"
+          fi
 
       - name: Terragrunt apply lobby service
         working-directory: infra/live/dev
@@ -111,13 +121,6 @@ jobs:
           echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
           echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
           echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
-
-      - name: Roll out latest task definition
-        run: |
-          aws ecs update-service \
-            --cluster "${{ steps.refreshed.outputs.ecs_cluster_name }}" \
-            --service "${{ steps.refreshed.outputs.ecs_service_name }}" \
-            --force-new-deployment
 
       - name: Wait for service stability
         run: |

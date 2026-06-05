@@ -1,10 +1,11 @@
 locals {
-  environment = "prod"
-  project     = "web-lf2"
-  name_prefix = "devops-web-lf2-prod"
-  aws_region  = "ap-northeast-1"
-  account_id  = "549475122024"
-  units_path  = find_in_parent_folders("catalog/units")
+  environment     = "prod"
+  project         = "web-lf2"
+  name_prefix     = "devops-web-lf2-prod"
+  aws_region      = "ap-northeast-1"
+  account_id      = "549475122024"
+  lobby_image_tag = get_env("LOBBY_IMAGE_TAG", "sha-0000000000000000000000000000000000000000")
+  units_path      = find_in_parent_folders("catalog/units")
 
   # Domain configuration
   hosted_zone_name = "noidilin.dev"
@@ -85,6 +86,7 @@ unit "lobby-service" {
     hosted_zone_name = local.hosted_zone_name
     allowed_origins  = local.allowed_origins
     lobby_domain     = local.lobby_domain
+    image_tag        = local.lobby_image_tag
   }
 }
 

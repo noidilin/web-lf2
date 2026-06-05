@@ -70,9 +70,14 @@ variable "ecr_repository_url" {
 }
 
 variable "image_tag" {
-  description = "Initial lobby image tag used by the ECS task definition"
+  description = "Immutable lobby image tag selected by the deployment workflow (sha-<git sha>)"
   type        = string
-  default     = "latest"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^sha-[0-9a-f]{40}$", var.image_tag))
+    error_message = "image_tag must use the canonical sha-<40 character lowercase git SHA> format."
+  }
 }
 
 variable "task_cpu" {
