@@ -23,6 +23,7 @@ var opts = require('optimist')
 	.argv;
 
 var port = Number(opts.port || process.env.PORT || 8001);
+var logger = createLogger({service:'f-lobby'});
 var trustProxy = String(process.env.TRUST_PROXY || '').toLowerCase() === 'true';
 var trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1);
 
@@ -40,15 +41,16 @@ var lobby_config = {
 	allowedOrigins: process.env.ALLOWED_ORIGINS || '',
 	roomTtlMs: Number(process.env.ROOM_TTL_MS || 0),
 	maxRoomUsers: Number(process.env.MAX_ROOM_USERS || 0),
+	logger: logger,
 	loginRateLimitMax: Number(process.env.LOGIN_RATE_LIMIT_MAX || 0),
 	loginRateLimitWindowMs: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 60000),
 	maxWsMessageSize: Number(process.env.MAX_WS_MESSAGE_SIZE || 0)
 };
 
 if( lobby_config.public)
-	console.log('public server');
+	logger.info('lobby_mode_selected', {message:'public server', public:true});
 else
-	console.log('private server');
+	logger.info('lobby_mode_selected', {message:'private server', public:false});
 
 if( opts.peerjs)
 {
@@ -61,7 +63,7 @@ if( opts.peerjs)
 		path:path
 	};
 	app.use(path, PeerServer(http, {debug:true}));
-	console.log('PeerJS transport');
+	logger.info('transport_selected', {transport:'peerjs', message:'PeerJS transport'});
 }
 else
 {
@@ -74,16 +76,16 @@ else
 		path:path
 	};
 	PeerServer(http, path, lobby_config);
-	console.log('WebSocket transport');
+	logger.info('transport_selected', {transport:'websocket', message:'WebSocket transport'});
 }
 
 app.use('/', Lobby(http, lobby_config));
 http.listen(port);
-console.log('Lobby started at port '+port);
+logger.info('lobby_started', {port:port, message:'Lobby started at port '+port});
 
 function shutdown()
 {
-	console.log('Lobby shutting down.');
+	logger.info('lobby_shutting_down', {message:'Lobby shutting down.'});
 	http.close(function() {
 		process.exit(0);
 	});
@@ -94,3 +96,31 @@ function shutdown()
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+function createLogger(base)
+{
+	function write(level, event, fields)
+	{
+		var payload = {};
+		for( var key in base)
+			payload[key] = base[key];
+		payload.timestamp = new Date().toISOString();
+		payload.level = level;
+		payload.event = event;
+		fields = fields || {};
+		for( var field in fields) {
+			if( fields[field] instanceof Error) {
+				payload[field] = {message:fields[field].message, stack:fields[field].stack};
+			} else {
+				payload[field] = fields[field];
+			}
+		}
+		console.log(JSON.stringify(payload));
+	}
+
+	return {
+		info: function(event, fields) { write('info', event, fields); },
+		warn: function(event, fields) { write('warn', event, fields); },
+		error: function(event, fields) { write('error', event, fields); }
+	};
+}

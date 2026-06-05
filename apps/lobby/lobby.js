@@ -14,6 +14,7 @@ var rooms = {};
 var roomUpdatedAt = {};
 var rateLimits = {};
 var allowedOrigins = parseAllowedOrigins(config.allowedOrigins);
+var logger = config.logger || createNoopLogger();
 
 app.use(cors({origin: makeCorsOriginCheck(allowedOrigins)}));
 app.use('/', express.static(__dirname + '/public'));
@@ -68,6 +69,7 @@ app.post('/login', bodyParser.json(), function(req, res) {
 	}
 
 	if( config.loginRateLimitMax && !consumeLoginAttempt(req)) {
+		logger.warn('login_rate_limited', {ip:req.ip, room:room, player:name});
 		res.status(429).send(JSON.stringify({
 			success: false,
 			mess: 'Login rate limit exceeded.'
@@ -99,7 +101,7 @@ app.post('/login', bodyParser.json(), function(req, res) {
 	if( !rooms[room]) {
 		rooms[room] = {};
 		roomUpdatedAt[room] = {};
-		console.log('Room '+room+' created.');
+		logger.info('room_created', {room:room, message:'Room '+room+' created.'});
 	}
 
 	if( config.maxRoomUsers && !rooms[room][name] && Object.keys(rooms[room]).length >= config.maxRoomUsers) {
@@ -141,7 +143,7 @@ app.on('mount', function() {
 					room = data.room;
 					rooms[room][name] = ws;
 					roomUpdatedAt[room][name] = Date.now();
-					console.log('Client '+name+' connected.');
+					logger.info('chat_client_connected', {room:room, player:name, message:'Client '+name+' connected.'});
 				}
 				if( data.target==='all') {
 					for( var I in rooms[room])
@@ -152,13 +154,12 @@ app.on('mount', function() {
 						rooms[room][data.target].send(json);
 				}
 			} catch (e) {
-				console.log(name+' caused an error.');
-				console.log(e);
+				logger.error('chat_message_error', {room:room, player:name, error:e, message:name+' caused an error.'});
 				ws.close();
 			}
 		});
 		ws.on('close', function() {
-			console.log('Client '+name+' disconnected');
+			logger.info('chat_client_disconnected', {room:room, player:name, message:'Client '+name+' disconnected'});
 			if( rooms[room] && rooms[room][name])
 			    delete rooms[room][name];
 			if( roomUpdatedAt[room] && roomUpdatedAt[room][name])
@@ -239,6 +240,7 @@ function cleanupRooms()
 			if( updatedAt && now - updatedAt > config.roomTtlMs) {
 				if( rooms[room][name].close)
 					rooms[room][name].close();
+				logger.info('room_user_expired', {room:room, player:name});
 				delete rooms[room][name];
 				delete roomUpdatedAt[room][name];
 			}
@@ -255,6 +257,15 @@ function isOversizedMessage(message, maxSize)
 	if( !maxSize)
 		return false;
 	return Buffer.byteLength(String(message)) > maxSize;
+}
+
+function createNoopLogger()
+{
+	return {
+		info: function() {},
+		warn: function() {},
+		error: function() {}
+	};
 }
 
 return app;
@@ -278,7 +289,8 @@ wsspeer.on('connection', function(ws) {
 				name = data.name;
 				peer = {ws:ws};
 				peers[name] = peer;
-				console.log('Peer '+name+' connected.');
+				if( config && config.logger)
+					config.logger.info('peer_connected', {player:name, message:'Peer '+name+' connected.'});
 			} else {
 				ws.close();
 			}
@@ -295,7 +307,8 @@ wsspeer.on('connection', function(ws) {
 		if( peer && peer.target && peers[peer.target]) {
 			peers[peer.target].ws.close();
 		}
-		console.log('Peer '+name+' disconnected');
+		if( config && config.logger)
+			config.logger.info('peer_disconnected', {player:name, message:'Peer '+name+' disconnected'});
 		peer = {};
 		delete peers[name];
 	});
