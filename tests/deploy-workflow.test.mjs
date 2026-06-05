@@ -16,6 +16,7 @@ test('dev deployment orchestrator models lobby before static dependency', () => 
   assert.match(deployDevWorkflow, /deploy-lobby-dev:[\s\S]+uses: \.\/\.github\/workflows\/deploy-lobby-dev\.yml/);
   assert.match(deployDevWorkflow, /deploy-static-dev:[\s\S]+needs: deploy-lobby-dev[\s\S]+uses: \.\/\.github\/workflows\/deploy-static-dev\.yml/);
   assert.match(deployDevWorkflow, /orchestrated: true/);
+  assert.doesNotMatch(deployDevWorkflow, /secrets: inherit/);
 });
 
 test('dev deploy leaves keep standalone dispatches queued', () => {
@@ -40,6 +41,9 @@ test('static deployment waits for deployed lobby readiness before browser smoke'
   assert.ok(waitStepIndex < smokeStepIndex);
   assert.match(staticDeployWorkflow, /\$LOBBY_BASE_URL\/healthz/);
   assert.match(staticDeployWorkflow, /\$LOBBY_BASE_URL\/protocol/);
+  assert.match(staticDeployWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url/);
+  assert.match(staticDeployWorkflow, /LOBBY_BASE_URL: \$\{\{ steps\.lobby\.outputs\.lobby_url \}\}/);
+  assert.doesNotMatch(staticDeployWorkflow, /LOBBY_BASE_URL: https:\/\/dev\.lf2-lobby\.noidilin\.dev/);
 });
 
 test('prod deployment is manually dispatched, gated, and deploys lobby before static', () => {
@@ -47,6 +51,8 @@ test('prod deployment is manually dispatched, gated, and deploys lobby before st
   assert.doesNotMatch(deployProdWorkflow, /push:/);
   assert.match(deployProdWorkflow, /workflow_dispatch:/);
   assert.match(deployProdWorkflow, /group: deploy-prod/);
+  assert.match(deployProdWorkflow, /cancel-in-progress:\s*false/);
+  assert.doesNotMatch(deployProdWorkflow, /secrets: inherit/);
   assert.match(deployProdWorkflow, /deploy-lobby-prod:[\s\S]+uses: \.\/\.github\/workflows\/deploy-lobby-prod\.yml/);
   assert.match(deployProdWorkflow, /deploy-static-prod:[\s\S]+needs: deploy-lobby-prod[\s\S]+uses: \.\/\.github\/workflows\/deploy-static-prod\.yml/);
 });
@@ -62,7 +68,9 @@ test('prod reusable deployments target prod stack, roles, endpoints, and protect
     assert.match(workflow, /cancel-in-progress: false/);
   }
 
-  assert.match(staticProdWorkflow, /LOBBY_BASE_URL: https:\/\/lf2-lobby\.noidilin\.dev/);
+  assert.match(staticProdWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url/);
+  assert.match(staticProdWorkflow, /LOBBY_BASE_URL: \$\{\{ steps\.lobby\.outputs\.lobby_url \}\}/);
+  assert.doesNotMatch(staticProdWorkflow, /LOBBY_BASE_URL: https:\/\/lf2-lobby\.noidilin\.dev/);
   assert.match(staticProdWorkflow, /LOBBY_NAME: Prod F\.Lobby/);
   assert.match(staticProdWorkflow, /npx playwright test --config playwright\.deployed\.config\.mjs/);
   assert.match(lobbyProdWorkflow, /Run deployed lobby contract checks/);

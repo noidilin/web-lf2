@@ -18,11 +18,9 @@ jobs:
     uses: ./.github/workflows/deploy-lobby-prod.yml
     with:
       orchestrated: true
-    secrets: inherit
 
   deploy-static-prod:
     needs: deploy-lobby-prod
     uses: ./.github/workflows/deploy-static-prod.yml
     with:
       orchestrated: true
-    secrets: inherit
