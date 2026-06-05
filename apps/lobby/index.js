@@ -115,7 +115,11 @@ function createLogger(base)
 				payload[field] = fields[field];
 			}
 		}
-		console.log(JSON.stringify(payload));
+		try {
+			console.log(JSON.stringify(payload));
+		} catch (err) {
+			console.error('Failed to serialize log payload: '+(err && err.message ? err.message : String(err)));
+		}
 	}
 
 	return {

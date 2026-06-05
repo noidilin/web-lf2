@@ -12,6 +12,8 @@ locals {
 
 # ─── Alarm Notifications ───────────────────────────────────────────────────
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_sns_topic" "regional_alarms" {
   name              = "${var.name_prefix}-alarm-notifications"
   kms_master_key_id = "alias/aws/sns"
@@ -37,11 +39,17 @@ data "aws_iam_policy_document" "regional_alarms" {
     }
 
     resources = [aws_sns_topic.regional_alarms.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
   }
 }
 
 resource "aws_sns_topic_subscription" "regional_email" {
-  count     = var.alarm_email == "" ? 0 : 1
+  count     = trimspace(var.alarm_email) == "" ? 0 : 1
   topic_arn = aws_sns_topic.regional_alarms.arn
   protocol  = "email"
   endpoint  = var.alarm_email
@@ -76,7 +84,21 @@ data "aws_iam_policy_document" "global_alarms" {
     }
 
     resources = [aws_sns_topic.global_alarms.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
   }
+}
+
+resource "aws_sns_topic_subscription" "global_email" {
+  provider  = aws.us_east_1
+  count     = trimspace(var.alarm_email) == "" ? 0 : 1
+  topic_arn = aws_sns_topic.global_alarms.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
 }
 
 # ─── Dashboard ──────────────────────────────────────────────────────────────

@@ -69,7 +69,7 @@ app.post('/login', bodyParser.json(), function(req, res) {
 	}
 
 	if( config.loginRateLimitMax && !consumeLoginAttempt(req)) {
-		logger.warn('login_rate_limited', {ip:req.ip, room:room, player:name});
+		logger.warn('login_rate_limited', {room:room, player:name});
 		res.status(429).send(JSON.stringify({
 			success: false,
 			mess: 'Login rate limit exceeded.'
@@ -154,7 +154,13 @@ app.on('mount', function() {
 						rooms[room][data.target].send(json);
 				}
 			} catch (e) {
-				logger.error('chat_message_error', {room:room, player:name, error:e, message:name+' caused an error.'});
+				logger.error('chat_message_error', {
+					room: room || '<unknown room>',
+					player: name || '<unknown player>',
+					error: e,
+					rawMessage: String(json).slice(0, 512),
+					message: (name || 'unknown client')+' caused an error.'
+				});
 				ws.close();
 			}
 		});
