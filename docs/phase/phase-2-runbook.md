@@ -50,7 +50,7 @@ Do not add long-lived AWS credentials to the repository or GitHub secrets. CI/CD
 F.Lobby image delivery follows a build once, promote many model in AWS terms:
 
 1. CI and the dev lobby deployment build the production container for a specific commit.
-2. ECR stores that release artifact under the immutable canonical tag `sha-${github.sha}`.
+2. ECR stores that release artifact under the immutable canonical tag `sha-${{ github.sha }}`.
 3. ECS task definitions receive `LOBBY_IMAGE_TAG` and run the selected SHA-tagged image, not a mutable environment tag.
 4. Dev and prod workflows optionally update mutable ECR aliases (`dev` and `prod`) by copying the selected SHA image manifest with `aws ecr batch-get-image` and `aws ecr put-image`.
 5. Deployed lobby contract checks prove the live ALB endpoint still serves `/healthz`, `/protocol`, and the preserved `F.Lobby 0.1` routes after ECS reaches stability.
@@ -75,6 +75,8 @@ cd infra/live/dev
 terragrunt stack run validate --non-interactive
 
 # Plan an environment stack, excluding deployment-identity unless intentionally updating CI IAM
+# lobby-service intentionally rejects the zero-SHA sentinel; use any real commit SHA for plans.
+export LOBBY_IMAGE_TAG="sha-$(git rev-parse HEAD)"
 terragrunt stack run plan --non-interactive --tf-forward-stdout \
   --queue-exclude-dir '.terragrunt-stack/deployment-identity' \
   --out-dir plan-out
@@ -118,7 +120,7 @@ Local lobby validation now belongs to `.github/workflows/ci.yml`; the deploy wor
 
 1. Assumes `devops-web-lf2-dev-github-apply` through OIDC.
 2. Applies `networking` and `lobby-bootstrap`.
-3. Builds the `apps/lobby` image with the canonical `sha-${github.sha}` tag and publishes only that tag to ECR.
+3. Builds the `apps/lobby` image with the canonical `sha-${{ github.sha }}` tag and publishes only that tag to ECR.
 4. Copies the selected SHA image manifest to the mutable `dev` ECR alias for observability; this is a server-side ECR manifest copy, not a rebuild, local retag, or deployment source change.
 5. Applies `lobby-service` with `LOBBY_IMAGE_TAG` so the ECS task definition selects the SHA-tagged image.
 6. Waits for ECS service stability after the task-definition update.
@@ -143,7 +145,7 @@ Local static checks now belong to `.github/workflows/ci.yml`; the deploy workflo
 Production is intentionally manual:
 
 1. Confirm dev has deployed successfully from the same commit or an equivalent commit.
-2. Choose the exact canonical `sha-<40 lowercase hex>` lobby image tag to promote. If the `Deploy Prod` input is left blank, the workflow derives `sha-${github.sha}` from the selected ref.
+2. Choose the exact canonical `sha-<40 lowercase hex>` lobby image tag to promote. If the `Deploy Prod` input is left blank, the workflow derives `sha-${{ github.sha }}` from the selected ref.
 3. Open GitHub Actions and dispatch `Deploy Prod`.
 4. Approve the GitHub `prod` environment when prompted.
 5. The workflow verifies that the selected SHA-tagged image already exists in ECR, copies its manifest to the mutable `prod` ECR alias for observability, and deploys lobby, static, and observability in the same order as dev using `devops-web-lf2-prod-github-apply`.
