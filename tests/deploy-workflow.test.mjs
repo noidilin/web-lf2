@@ -4,7 +4,9 @@ import { test } from 'node:test';
 
 const ciWorkflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const rootPackage = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+const lobbyPackage = await readFile(new URL('../apps/lobby/package.json', import.meta.url), 'utf8');
 const lobbyDockerfile = await readFile(new URL('../apps/lobby/Dockerfile', import.meta.url), 'utf8');
+const lobbyDockerSmokeScript = await readFile(new URL('../apps/lobby/scripts/docker-smoke.mjs', import.meta.url), 'utf8');
 const deployDevWorkflow = await readFile(new URL('../.github/workflows/deploy-dev.yml', import.meta.url), 'utf8');
 const staticDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-static-dev.yml', import.meta.url), 'utf8');
 const lobbyDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-dev.yml', import.meta.url), 'utf8');
@@ -48,12 +50,15 @@ test('CI workflow owns local test concerns before deployment', () => {
 test('lobby Dockerfile exposes a test-gated production image', () => {
   assert.match(rootPackage, /"test:lobby:image": "docker build --target test apps\/lobby"/);
   assert.match(lobbyDockerfile, /FROM runtime-deps AS test/);
+  assert.match(lobbyPackage, /"test:docker-smoke": "node scripts\/docker-smoke\.mjs"/);
   assert.match(lobbyDockerfile, /node --check index\.js/);
   assert.match(lobbyDockerfile, /node --check lobby\.js/);
-  assert.match(lobbyDockerfile, /\/healthz/);
-  assert.match(lobbyDockerfile, /\/protocol/);
-  assert.match(lobbyDockerfile, /\(async \(\) =>/);
-  assert.match(lobbyDockerfile, /\.catch\(\(error\) => \{ console\.error\(error\); process\.exit\(1\); \}\)/);
+  assert.match(lobbyDockerfile, /node --check scripts\/docker-smoke\.mjs/);
+  assert.match(lobbyDockerfile, /npm run test:docker-smoke/);
+  assert.match(lobbyDockerSmokeScript, /\/healthz/);
+  assert.match(lobbyDockerSmokeScript, /\/protocol/);
+  assert.match(lobbyDockerSmokeScript, /spawn\(process\.execPath, \['index\.js'\]/);
+  assert.match(lobbyDockerSmokeScript, /server\.kill\('SIGTERM'\)/);
   assert.match(lobbyDockerfile, /FROM runtime-deps AS production/);
   assert.match(lobbyDockerfile, new RegExp(`> ${escapeRegExp(lobbyTestMarker)}`));
   assert.match(
@@ -65,8 +70,7 @@ test('lobby Dockerfile exposes a test-gated production image', () => {
   const markerIndex = lobbyDockerfile.indexOf(lobbyTestMarker);
   assert.ok(lobbyDockerfile.indexOf('node --check index.js') < markerIndex);
   assert.ok(lobbyDockerfile.indexOf('node --check lobby.js') < markerIndex);
-  assert.ok(lobbyDockerfile.indexOf('/healthz') < markerIndex);
-  assert.ok(lobbyDockerfile.indexOf('/protocol') < markerIndex);
+  assert.ok(lobbyDockerfile.indexOf('npm run test:docker-smoke') < markerIndex);
   assert.ok(lobbyDockerfile.indexOf('FROM runtime-deps AS production') < lobbyDockerfile.indexOf('COPY --from=test'));
 });
 

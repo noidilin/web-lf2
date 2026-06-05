@@ -5,7 +5,8 @@
   "author": "Project F Developers",
   "main": "lobby.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test:docker-smoke": "node scripts/docker-smoke.mjs"
   },
   "dependencies": {
     "body-parser": "~1.12.0",
