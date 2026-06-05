@@ -6,6 +6,7 @@ const observabilityMain = await readFile(new URL('../infra/catalog/modules/obser
 const observabilityVars = await readFile(new URL('../infra/catalog/modules/observability/variables.tf', import.meta.url), 'utf8');
 const observabilityOutputs = await readFile(new URL('../infra/catalog/modules/observability/outputs.tf', import.meta.url), 'utf8');
 const observabilityUnit = await readFile(new URL('../infra/catalog/units/observability/terragrunt.hcl', import.meta.url), 'utf8');
+const deploymentIdentity = await readFile(new URL('../infra/catalog/modules/deployment-identity/main.tf', import.meta.url), 'utf8');
 const lobbyMain = await readFile(new URL('../infra/catalog/modules/lobby-service/main.tf', import.meta.url), 'utf8');
 const lobbyOutputs = await readFile(new URL('../infra/catalog/modules/lobby-service/outputs.tf', import.meta.url), 'utf8');
 const lobbyIndex = await readFile(new URL('../apps/lobby/index.js', import.meta.url), 'utf8');
@@ -53,6 +54,20 @@ test('observability unit consumes static and lobby deployment outputs', () => {
   assert.match(observabilityUnit, /mock_outputs_merge_strategy_with_state\s+=\s+"shallow"/);
   assert.match(observabilityUnit, /cloudfront_distribution_id\s+=\s+dependency\.static_site\.outputs\.cloudfront_distribution_id/);
   assert.match(observabilityUnit, /alb_arn_suffix\s+=\s+dependency\.lobby_service\.outputs\.alb_arn_suffix/);
+});
+
+test('deployment identity can plan and apply observability resources', () => {
+  assert.match(deploymentIdentity, /ReadObservabilityInfrastructure/);
+  assert.match(deploymentIdentity, /cloudwatch:DescribeAlarms/);
+  assert.match(deploymentIdentity, /cloudwatch:GetDashboard/);
+  assert.match(deploymentIdentity, /sns:GetTopicAttributes/);
+  assert.match(deploymentIdentity, /ManageObservabilityInfrastructure/);
+  assert.match(deploymentIdentity, /sns:CreateTopic/);
+  assert.match(deploymentIdentity, /sns:SetTopicAttributes/);
+  assert.match(deploymentIdentity, /sns:Subscribe/);
+  assert.match(deploymentIdentity, /cloudwatch:PutMetricAlarm/);
+  assert.match(deploymentIdentity, /cloudwatch:PutDashboard/);
+  assert.match(deploymentIdentity, /aws_iam_role_policy_attachment" "github_apply_observability"/);
 });
 
 test('documentation explains dashboard sections and alarm meaning', () => {

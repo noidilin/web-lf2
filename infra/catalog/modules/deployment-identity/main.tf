@@ -185,6 +185,22 @@ resource "aws_iam_policy" "github_plan" {
           "logs:ListTagsForResource"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "ReadObservabilityInfrastructure"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:DescribeAlarmHistory",
+          "cloudwatch:GetDashboard",
+          "cloudwatch:ListDashboards",
+          "cloudwatch:ListTagsForResource",
+          "sns:GetSubscriptionAttributes",
+          "sns:GetTopicAttributes",
+          "sns:ListSubscriptionsByTopic",
+          "sns:ListTagsForResource"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -559,6 +575,57 @@ resource "aws_iam_policy" "github_apply_lobby" {
   }
 }
 
+resource "aws_iam_policy" "github_apply_observability" {
+  name        = "${var.name_prefix}-github-apply-observability-policy"
+  description = "Observability permissions for GitHub Actions terraform apply"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageObservabilityInfrastructure"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:DeleteAlarms",
+          "cloudwatch:DeleteDashboards",
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:GetDashboard",
+          "cloudwatch:ListDashboards",
+          "cloudwatch:ListTagsForResource",
+          "cloudwatch:PutDashboard",
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:TagResource",
+          "cloudwatch:UntagResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageObservabilityNotifications"
+        Effect = "Allow"
+        Action = [
+          "sns:CreateTopic",
+          "sns:DeleteTopic",
+          "sns:GetSubscriptionAttributes",
+          "sns:GetTopicAttributes",
+          "sns:ListSubscriptionsByTopic",
+          "sns:ListTagsForResource",
+          "sns:SetTopicAttributes",
+          "sns:Subscribe",
+          "sns:TagResource",
+          "sns:Unsubscribe",
+          "sns:UntagResource"
+        ]
+        Resource = local.observability_sns_topic_arns
+      }
+    ]
+  })
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+  }
+}
+
 resource "aws_iam_role_policy_attachment" "github_plan" {
   role       = aws_iam_role.github_plan.name
   policy_arn = aws_iam_policy.github_plan.arn
@@ -572,4 +639,9 @@ resource "aws_iam_role_policy_attachment" "github_apply" {
 resource "aws_iam_role_policy_attachment" "github_apply_lobby" {
   role       = aws_iam_role.github_apply.name
   policy_arn = aws_iam_policy.github_apply_lobby.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_apply_observability" {
+  role       = aws_iam_role.github_apply.name
+  policy_arn = aws_iam_policy.github_apply_observability.arn
 }

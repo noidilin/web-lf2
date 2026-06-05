@@ -14,4 +14,9 @@ locals {
 
   lobby_ecr_repository_arn = "arn:aws:ecr:${var.aws_region}:${var.account_id}:repository/${var.name_prefix}-lobby"
   lobby_iam_roles_arn      = "arn:aws:iam::${var.account_id}:role/${var.name_prefix}-lobby-*"
+
+  observability_sns_topic_arns = [
+    "arn:aws:sns:${var.aws_region}:${var.account_id}:${var.name_prefix}-alarm-notifications",
+    "arn:aws:sns:us-east-1:${var.account_id}:${var.name_prefix}-cloudfront-alarm-notifications"
+  ]
 }
