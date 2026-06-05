@@ -58,6 +58,11 @@ variable "desired_lobby_task_count" {
   description = "Expected running ECS task count for the single-task F.Lobby baseline"
   type        = number
   default     = 1
+
+  validation {
+    condition     = var.desired_lobby_task_count >= 1 && floor(var.desired_lobby_task_count) == var.desired_lobby_task_count
+    error_message = "desired_lobby_task_count must be a positive integer."
+  }
 }
 
 variable "alarm_email" {
