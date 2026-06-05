@@ -42,6 +42,8 @@
 
 ## Status
 
+Phase 2 now has a documented AWS baseline runbook at `docs/phase/phase-2-runbook.md`. The baseline covers private S3 + CloudFront static delivery, ECS Fargate + ALB HTTPS/WSS lobby hosting, GitHub Actions OIDC deployments for dev/prod, deployed smoke tests, and CloudWatch dashboard/alarms. Later phases keep Redis-backed lobby state, horizontal scaling, EKS, and frontend rewrite work out of this milestone.
+
 The repository now uses the normalized layout:
 
 ```txt

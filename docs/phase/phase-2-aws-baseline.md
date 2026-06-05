@@ -1,5 +1,7 @@
 # Plan Phase 2 — AWS baseline deployment
 
+See `docs/phase/phase-2-runbook.md` for deployment, validation, smoke test, and operations procedures for the completed baseline.
+
 ## Goal
 
 Deploy the stabilized legacy app to AWS using production-style infrastructure.

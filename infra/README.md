@@ -109,7 +109,8 @@ All IAM roles and policies follow the lab naming and boundary rules:
 |---|---|---|
 | github-oidc-provider | **Ready** | Account-level GitHub Actions OIDC provider |
 | deployment-identity | **Ready** | Environment plan/apply roles trusting shared OIDC provider |
-| networking | Placeholder | VPC layout will be added in a later issue |
+| networking | **Implemented** | VPC, public/private subnets, routing, and ALB-to-task security boundaries |
 | static-site | **Implemented** | Private S3 bucket + CloudFront CDN with OAC, ACM (us-east-1), Route 53 alias, cache policy, HTTPS-only |
-| lobby-service | Placeholder | ECS Fargate + ALB will be added in a later issue |
-| observability | Placeholder | CloudWatch will be added in a later issue |
+| lobby-bootstrap | **Implemented** | ECR repository for the F.Lobby container image |
+| lobby-service | **Implemented** | ECS Fargate + ALB HTTPS/WSS service, CloudWatch Logs, health checks, and DNS |
+| observability | **Implemented** | CloudWatch dashboard, baseline alarms, and SNS notification topics |
