@@ -98,29 +98,30 @@ You can also manually dispatch `Deploy Dev` from GitHub Actions.
 
 ### Dev lobby deployment details
 
+Local lobby validation now belongs to `.github/workflows/ci.yml`; the deploy workflow assumes CI has already checked the Dockerized lobby contract, hardening behavior, and infrastructure contracts.
+
 `.github/workflows/deploy-lobby-dev.yml`:
 
-1. Installs root and lobby dependencies.
-2. Runs the Dockerized local lobby contract smoke and lobby hardening/infrastructure tests.
-3. Assumes `devops-web-lf2-dev-github-apply` through OIDC.
-4. Applies `networking` and `lobby-bootstrap`.
-5. Builds the `apps/lobby` image, pushes `:${github.sha}` and `:latest` to ECR.
-6. Applies `lobby-service`.
-7. Forces a new ECS deployment and waits for service stability.
-8. Runs `tests/deployed-lobby-contract.test.mjs` against the deployed lobby URL.
+1. Assumes `devops-web-lf2-dev-github-apply` through OIDC.
+2. Applies `networking` and `lobby-bootstrap`.
+3. Builds the `apps/lobby` image with the canonical `sha-${github.sha}` tag and publishes only that tag to ECR.
+4. Applies `lobby-service` with `LOBBY_IMAGE_TAG` so the ECS task definition selects the SHA-tagged image.
+5. Waits for ECS service stability after the task-definition update.
+6. Runs `tests/deployed-lobby-contract.test.mjs` against the deployed lobby URL.
 
 ### Dev static deployment details
+
+Local static checks now belong to `.github/workflows/ci.yml`; the deploy workflow rebuilds the environment-specific artifact with the deployed lobby URL and then verifies the deployed system.
 
 `.github/workflows/deploy-static-dev.yml`:
 
 1. Reads `lobby-service.lobby_url` from Terragrunt outputs.
 2. Builds `dist/static` with `LOBBY_BASE_URL` set to the deployed lobby URL.
-3. Runs static artifact checks and static unit tests.
-4. Applies `static-site`.
-5. Syncs `dist/static/` to the private S3 bucket with `--delete`.
-6. Invalidates CloudFront with path `/*`.
-7. Waits for `/healthz` and `/protocol` on the deployed lobby.
-8. Runs Playwright deployed smoke tests against the CloudFront game URL.
+3. Applies `static-site`.
+4. Syncs `dist/static/` to the private S3 bucket with `--delete`.
+5. Invalidates CloudFront with path `/*`.
+6. Waits for `/healthz` and `/protocol` on the deployed lobby.
+7. Runs Playwright deployed smoke tests against the CloudFront game URL.
 
 ## Deploy prod
 
@@ -135,6 +136,8 @@ Production is intentionally manual:
 Standalone production workflows (`Deploy Lobby Prod`, `Deploy Static Site Prod`, and `Deploy Observability Prod`) are available for targeted recovery, but prefer the orchestrated `Deploy Prod` workflow for normal releases so the game artifact is built against the current deployed lobby URL.
 
 ## Local smoke tests
+
+`.github/workflows/ci.yml` owns local pre-deployment validation. It separates static checks, lobby checks, workflow/documentation tests, and local browser smoke tests so deployment workflows do not mix local test concerns with AWS rollout concerns.
 
 Run these from the repository root before deployment-impacting changes:
 

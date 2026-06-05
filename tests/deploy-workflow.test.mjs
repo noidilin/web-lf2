@@ -80,6 +80,18 @@ test('dev deployment orchestrator models lobby before static dependency', () => 
   assert.doesNotMatch(deployDevWorkflow, /secrets: inherit/);
 });
 
+test('lobby deployment workflows select immutable SHA-tagged artifacts', () => {
+  for (const workflow of [lobbyDeployWorkflow, lobbyProdWorkflow]) {
+    assert.match(workflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
+    assert.match(workflow, /--tag "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
+    assert.match(workflow, /aws ecr describe-images/);
+    assert.match(workflow, /docker push "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
+    assert.doesNotMatch(workflow, /:latest/);
+    assert.doesNotMatch(workflow, /aws ecs update-service/);
+    assert.doesNotMatch(workflow, /force-new-deployment/);
+  }
+});
+
 test('dev deploy leaves keep standalone dispatches queued', () => {
   for (const workflow of [staticDeployWorkflow, lobbyDeployWorkflow, observabilityDeployWorkflow]) {
     assert.match(workflow, /workflow_call:/);

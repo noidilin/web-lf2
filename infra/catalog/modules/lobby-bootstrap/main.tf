@@ -10,10 +10,9 @@ locals {
 resource "aws_ecr_repository" "lobby" {
   name = local.name_prefix
 
-  # The dev deploy workflow currently pushes both an immutable git-SHA tag and
-  # a refreshed :latest tag for simple force-new-deployment demos. Keep tags
-  # mutable until the pipeline switches to SHA-only task definitions.
-  image_tag_mutability = "MUTABLE"
+  # Deployment workflows publish canonical sha-<git sha> image tags and ECS
+  # task definitions select those tags directly, so ECR rejects tag rewrites.
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
