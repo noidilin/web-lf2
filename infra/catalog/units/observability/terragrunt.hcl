@@ -33,11 +33,11 @@ dependency "lobby_service" {
 
   mock_outputs_allowed_terraform_commands = ["validate", "plan"]
   mock_outputs = {
-    alb_arn_suffix           = "app/devops-web-lf2-dev-lobby/0000000000000000"
-    target_group_arn_suffix  = "targetgroup/devops-web-lf2-dev-lobby/0000000000000000"
-    ecs_cluster_name         = "devops-web-lf2-dev-lobby"
-    ecs_service_name         = "devops-web-lf2-dev-lobby"
-    log_group_name           = "/ecs/devops-web-lf2-dev-lobby"
+    alb_arn_suffix          = "app/devops-web-lf2-dev-lobby/0000000000000000"
+    target_group_arn_suffix = "targetgroup/devops-web-lf2-dev-lobby/0000000000000000"
+    ecs_cluster_name        = "devops-web-lf2-dev-lobby"
+    ecs_service_name        = "devops-web-lf2-dev-lobby"
+    log_group_name          = "/ecs/devops-web-lf2-dev-lobby"
   }
 }
 
