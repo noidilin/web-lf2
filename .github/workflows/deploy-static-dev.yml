@@ -52,13 +52,23 @@ jobs:
       - name: Setup Terraform and Terragrunt
         uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a
 
+      - name: Prepare Terragrunt stack outputs
+        working-directory: infra/live/dev
+        run: |
+          terragrunt stack generate --non-interactive
+          terragrunt stack run init --non-interactive \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-include-dir '.terragrunt-stack/lobby-bootstrap' \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include
+
       - name: Get lobby URL
         id: lobby
         working-directory: infra/live/dev
         run: |
           set -euo pipefail
 
-          LOBBY_URL=$(terragrunt stack output --format raw lobby-service.lobby_url --non-interactive)
+          LOBBY_URL=$(terragrunt stack output --format raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
 
           if [[ -z "$LOBBY_URL" ]]; then
             echo "lobby-service lobby_url output is empty" >&2

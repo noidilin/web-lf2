@@ -33,15 +33,23 @@ test('dev deploy leaves keep standalone dispatches queued', () => {
 });
 
 test('static deployment waits for deployed lobby readiness before browser smoke', () => {
+  const generateStepIndex = staticDeployWorkflow.indexOf('- name: Prepare Terragrunt stack outputs');
+  const getLobbyStepIndex = staticDeployWorkflow.indexOf('- name: Get lobby URL');
   const waitStepIndex = staticDeployWorkflow.indexOf('- name: Wait for deployed lobby');
   const smokeStepIndex = staticDeployWorkflow.indexOf('- name: Run deployed smoke test');
 
+  assert.notEqual(generateStepIndex, -1);
+  assert.notEqual(getLobbyStepIndex, -1);
   assert.notEqual(waitStepIndex, -1);
   assert.notEqual(smokeStepIndex, -1);
+  assert.ok(generateStepIndex < getLobbyStepIndex);
   assert.ok(waitStepIndex < smokeStepIndex);
+  assert.match(staticDeployWorkflow, /terragrunt stack generate --non-interactive/);
+  assert.match(staticDeployWorkflow, /terragrunt stack run init --non-interactive/);
+  assert.match(staticDeployWorkflow, /--queue-include-dir '\.terragrunt-stack\/lobby-service'/);
   assert.match(staticDeployWorkflow, /\$LOBBY_BASE_URL\/healthz/);
   assert.match(staticDeployWorkflow, /\$LOBBY_BASE_URL\/protocol/);
-  assert.match(staticDeployWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url/);
+  assert.match(staticDeployWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url --non-interactive --queue-include-dir '\.terragrunt-stack\/lobby-service' --queue-strict-include/);
   assert.match(staticDeployWorkflow, /LOBBY_BASE_URL: \$\{\{ steps\.lobby\.outputs\.lobby_url \}\}/);
   assert.doesNotMatch(staticDeployWorkflow, /LOBBY_BASE_URL: https:\/\/dev\.lf2-lobby\.noidilin\.dev/);
 });
@@ -68,7 +76,9 @@ test('prod reusable deployments target prod stack, roles, endpoints, and protect
     assert.match(workflow, /cancel-in-progress: false/);
   }
 
-  assert.match(staticProdWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url/);
+  assert.match(staticProdWorkflow, /terragrunt stack generate --non-interactive/);
+  assert.match(staticProdWorkflow, /terragrunt stack run init --non-interactive/);
+  assert.match(staticProdWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url --non-interactive --queue-include-dir '\.terragrunt-stack\/lobby-service' --queue-strict-include/);
   assert.match(staticProdWorkflow, /LOBBY_BASE_URL: \$\{\{ steps\.lobby\.outputs\.lobby_url \}\}/);
   assert.doesNotMatch(staticProdWorkflow, /LOBBY_BASE_URL: https:\/\/lf2-lobby\.noidilin\.dev/);
   assert.match(staticProdWorkflow, /LOBBY_NAME: Prod F\.Lobby/);
