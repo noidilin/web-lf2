@@ -13,16 +13,19 @@ on:
       - 'infra/catalog/modules/lobby-bootstrap/**'
       - 'infra/catalog/modules/lobby-service/**'
       - 'infra/catalog/modules/networking/**'
+      - 'infra/catalog/modules/observability/**'
       - 'infra/catalog/modules/static-site/**'
       - 'infra/catalog/units/lobby-bootstrap/**'
       - 'infra/catalog/units/lobby-service/**'
       - 'infra/catalog/units/networking/**'
+      - 'infra/catalog/units/observability/**'
       - 'infra/catalog/units/static-site/**'
       - 'infra/live/dev/terragrunt.stack.hcl'
       - 'infra/live/root.hcl'
       - 'tests/**'
       - '.github/workflows/deploy-dev.yml'
       - '.github/workflows/deploy-lobby-dev.yml'
+      - '.github/workflows/deploy-observability-dev.yml'
       - '.github/workflows/deploy-static-dev.yml'
   workflow_dispatch:
 
@@ -45,5 +48,11 @@ jobs:
   deploy-static-dev:
     needs: deploy-lobby-dev
     uses: ./.github/workflows/deploy-static-dev.yml
+    with:
+      orchestrated: true
+
+  deploy-observability-dev:
+    needs: deploy-static-dev
+    uses: ./.github/workflows/deploy-observability-dev.yml
     with:
       orchestrated: true

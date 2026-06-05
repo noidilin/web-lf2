@@ -9,18 +9,24 @@ const lobbyDestroyWorkflow = await readFile(new URL('../.github/workflows/destro
 const deployProdWorkflow = await readFile(new URL('../.github/workflows/deploy-prod.yml', import.meta.url), 'utf8');
 const staticProdWorkflow = await readFile(new URL('../.github/workflows/deploy-static-prod.yml', import.meta.url), 'utf8');
 const lobbyProdWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-prod.yml', import.meta.url), 'utf8');
+const observabilityDeployWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-dev.yml', import.meta.url), 'utf8');
+const observabilityProdWorkflow = await readFile(new URL('../.github/workflows/deploy-observability-prod.yml', import.meta.url), 'utf8');
 
 test('dev deployment orchestrator models lobby before static dependency', () => {
   assert.match(deployDevWorkflow, /name: Deploy Dev/);
   assert.match(deployDevWorkflow, /group: deploy-dev/);
   assert.match(deployDevWorkflow, /deploy-lobby-dev:[\s\S]+uses: \.\/\.github\/workflows\/deploy-lobby-dev\.yml/);
   assert.match(deployDevWorkflow, /deploy-static-dev:[\s\S]+needs: deploy-lobby-dev[\s\S]+uses: \.\/\.github\/workflows\/deploy-static-dev\.yml/);
+  assert.match(deployDevWorkflow, /deploy-observability-dev:[\s\S]+needs: deploy-static-dev[\s\S]+uses: \.\/\.github\/workflows\/deploy-observability-dev\.yml/);
+  assert.match(deployDevWorkflow, /infra\/catalog\/modules\/observability\/\*\*/);
+  assert.match(deployDevWorkflow, /infra\/catalog\/units\/observability\/\*\*/);
+  assert.match(deployDevWorkflow, /\.github\/workflows\/deploy-observability-dev\.yml/);
   assert.match(deployDevWorkflow, /orchestrated: true/);
   assert.doesNotMatch(deployDevWorkflow, /secrets: inherit/);
 });
 
 test('dev deploy leaves keep standalone dispatches queued', () => {
-  for (const workflow of [staticDeployWorkflow, lobbyDeployWorkflow]) {
+  for (const workflow of [staticDeployWorkflow, lobbyDeployWorkflow, observabilityDeployWorkflow]) {
     assert.match(workflow, /workflow_call:/);
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /inputs\.orchestrated/);
@@ -54,6 +60,22 @@ test('static deployment waits for deployed lobby readiness before browser smoke'
   assert.doesNotMatch(staticDeployWorkflow, /LOBBY_BASE_URL: https:\/\/dev\.lf2-lobby\.noidilin\.dev/);
 });
 
+test('observability deployment applies after app infrastructure outputs exist', () => {
+  assert.match(observabilityDeployWorkflow, /name: Deploy Observability Dev/);
+  assert.match(observabilityDeployWorkflow, /environment: dev/);
+  assert.match(observabilityDeployWorkflow, /role\/devops-web-lf2-dev-github-apply/);
+  assert.match(observabilityDeployWorkflow, /working-directory: infra\/live\/dev/);
+  assert.match(observabilityDeployWorkflow, /--queue-include-dir '\.terragrunt-stack\/observability'/);
+  assert.match(observabilityDeployWorkflow, /--queue-strict-include/);
+  assert.match(observabilityDeployWorkflow, /terragrunt stack output --format json observability/);
+
+  assert.match(observabilityProdWorkflow, /name: Deploy Observability Prod/);
+  assert.match(observabilityProdWorkflow, /environment: prod/);
+  assert.match(observabilityProdWorkflow, /role\/devops-web-lf2-prod-github-apply/);
+  assert.match(observabilityProdWorkflow, /working-directory: infra\/live\/prod/);
+  assert.match(observabilityProdWorkflow, /--queue-include-dir '\.terragrunt-stack\/observability'/);
+});
+
 test('prod deployment is manually dispatched, gated, and deploys lobby before static', () => {
   assert.match(deployProdWorkflow, /name: Deploy Prod/);
   assert.doesNotMatch(deployProdWorkflow, /push:/);
@@ -63,10 +85,11 @@ test('prod deployment is manually dispatched, gated, and deploys lobby before st
   assert.doesNotMatch(deployProdWorkflow, /secrets: inherit/);
   assert.match(deployProdWorkflow, /deploy-lobby-prod:[\s\S]+uses: \.\/\.github\/workflows\/deploy-lobby-prod\.yml/);
   assert.match(deployProdWorkflow, /deploy-static-prod:[\s\S]+needs: deploy-lobby-prod[\s\S]+uses: \.\/\.github\/workflows\/deploy-static-prod\.yml/);
+  assert.match(deployProdWorkflow, /deploy-observability-prod:[\s\S]+needs: deploy-static-prod[\s\S]+uses: \.\/\.github\/workflows\/deploy-observability-prod\.yml/);
 });
 
 test('prod reusable deployments target prod stack, roles, endpoints, and protected environment', () => {
-  for (const workflow of [staticProdWorkflow, lobbyProdWorkflow]) {
+  for (const workflow of [staticProdWorkflow, lobbyProdWorkflow, observabilityProdWorkflow]) {
     assert.match(workflow, /workflow_call:/);
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /environment: prod/);

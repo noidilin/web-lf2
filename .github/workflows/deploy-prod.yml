@@ -24,3 +24,9 @@ jobs:
     uses: ./.github/workflows/deploy-static-prod.yml
     with:
       orchestrated: true
+
+  deploy-observability-prod:
+    needs: deploy-static-prod
+    uses: ./.github/workflows/deploy-observability-prod.yml
+    with:
+      orchestrated: true
