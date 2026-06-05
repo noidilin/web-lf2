@@ -206,6 +206,26 @@ Track:
 - ECS task restarts
 - lobby health check failures
 
+## Observability v1
+
+The observability baseline is intentionally small and uses managed CloudWatch metrics first. F.Lobby writes newline-delimited JSON to stdout so the ECS `awslogs` driver can send searchable events to CloudWatch Logs. Useful fields include `timestamp`, `level`, `event`, `room`, `player`, and `message`.
+
+Dashboard sections:
+
+- **CloudFront delivery** — requests, 4xx rate, 5xx rate, and cache hit ratio for the static game distribution.
+- **Lobby load balancer** — ALB request count, ALB-generated 4xx/5xx errors, and p95 target response time for HTTPS/WSS entry traffic.
+- **ECS runtime** — service CPU, memory, and Container Insights running task count for the single-task F.Lobby baseline.
+- **Lobby availability** — healthy and unhealthy target counts for the lobby target group.
+- **Recent structured lobby errors** — a Logs Insights table filtered to warning and error events from the F.Lobby log group.
+
+Baseline alarms:
+
+- `cloudfront_5xx_rate` means static delivery is returning sustained CDN/origin server errors.
+- `alb_5xx_count` means the lobby ALB itself is returning server errors.
+- `alb_unhealthy_targets` means one or more registered lobby targets failed health checks.
+- `ecs_running_task_count` means ECS has fewer running tasks than the desired single-task baseline; missing data is treated as breaching because no task metric is itself a health failure.
+- `lobby_availability` means there are no healthy lobby targets available for HTTPS/WSS traffic; missing target health data is treated as breaching.
+
 ## Acceptance criteria
 
 - static game is available through CloudFront HTTPS
