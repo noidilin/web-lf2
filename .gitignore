@@ -15,5 +15,6 @@ tests/screenshots/
 *.tfstate.backup
 
 # ai
-docs/ref-agentic
+AGENTS.md
+docs/
 .ralph
