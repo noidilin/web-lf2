@@ -10,6 +10,8 @@ const lobbyUnit = await readFile(new URL('../infra/catalog/units/lobby-service/t
 const devStack = await readFile(new URL('../infra/live/dev/terragrunt.stack.hcl', import.meta.url), 'utf8');
 const prodStack = await readFile(new URL('../infra/live/prod/terragrunt.stack.hcl', import.meta.url), 'utf8');
 const deployWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+const deployLobbyAction = await readFile(new URL('../.github/actions/deploy-lobby/action.yml', import.meta.url), 'utf8');
+const deploymentAutomation = `${deployWorkflow}\n${deployLobbyAction}`;
 
 test('lobby infrastructure exposes F.Lobby through ECS Fargate behind HTTPS ALB', () => {
   assert.match(lobbyBootstrapMain, /aws_ecr_repository"\s+"lobby"/);
@@ -88,20 +90,21 @@ test('lobby module consumes networking outputs instead of public task networking
 
 test('deploy workflow builds, pushes, rolls out, and checks the deployed lobby contract', () => {
   assert.match(deployWorkflow, /name: Deploy/);
-  assert.match(deployWorkflow, /lobby-bootstrap/);
-  assert.doesNotMatch(deployWorkflow, /-target=aws_ecr_repository\.lobby/);
+  assert.match(deploymentAutomation, /lobby-bootstrap/);
+  assert.doesNotMatch(deploymentAutomation, /-target=aws_ecr_repository\.lobby/);
   assert.match(deployWorkflow, /format\('sha-\{0\}', github\.sha\)/);
-  assert.match(deployWorkflow, /if: env\.TARGET_ENVIRONMENT == 'dev'[\s\S]+docker build/);
-  assert.match(deployWorkflow, /:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}/);
-  assert.match(deployWorkflow, /aws ecr get-login-password/);
-  assert.match(deployWorkflow, /aws ecr describe-images/);
-  assert.match(deployWorkflow, /docker push/);
-  assert.match(deployWorkflow, /aws ecr batch-get-image/);
-  assert.match(deployWorkflow, /aws ecr put-image[\s\S]+--image-tag "\$\{TARGET_ENVIRONMENT\}"/);
-  assert.match(deployWorkflow, /terragrunt stack run apply/);
-  assert.doesNotMatch(deployWorkflow, /:latest/);
-  assert.doesNotMatch(deployWorkflow, /aws ecs update-service/);
-  assert.doesNotMatch(deployWorkflow, /force-new-deployment/);
-  assert.match(deployWorkflow, /aws ecs wait services-stable/);
-  assert.match(deployWorkflow, /tests\/deployed-lobby-contract\.test\.mjs/);
+  assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/deploy-lobby/);
+  assert.match(deployLobbyAction, /if: \$\{\{ inputs\.target-environment == 'dev' \}\}[\s\S]+docker build/);
+  assert.match(deployLobbyAction, /:\$\{\{ inputs\.lobby-image-tag \}\}/);
+  assert.match(deployLobbyAction, /aws ecr get-login-password/);
+  assert.match(deployLobbyAction, /aws ecr describe-images/);
+  assert.match(deployLobbyAction, /docker push/);
+  assert.match(deployLobbyAction, /aws ecr batch-get-image/);
+  assert.match(deployLobbyAction, /aws ecr put-image[\s\S]+--image-tag "\$\{TARGET_ENVIRONMENT\}"/);
+  assert.match(deployLobbyAction, /terragrunt stack run apply/);
+  assert.doesNotMatch(deploymentAutomation, /:latest/);
+  assert.doesNotMatch(deploymentAutomation, /aws ecs update-service/);
+  assert.doesNotMatch(deploymentAutomation, /force-new-deployment/);
+  assert.match(deployLobbyAction, /aws ecs wait services-stable/);
+  assert.match(deployLobbyAction, /tests\/deployed-lobby-contract\.test\.mjs/);
 });

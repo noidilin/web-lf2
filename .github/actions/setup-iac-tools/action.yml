@@ -1,0 +1,7 @@
+name: Setup IaC tools
+description: Install Terraform and Terragrunt for deployment jobs.
+runs:
+  using: composite
+  steps:
+    - name: Setup Terraform and Terragrunt
+      uses: gruntwork-io/terragrunt-action@v3.4.0
