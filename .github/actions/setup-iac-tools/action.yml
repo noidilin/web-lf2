@@ -4,4 +4,4 @@ runs:
   using: composite
   steps:
     - name: Setup Terraform and Terragrunt
-      uses: gruntwork-io/terragrunt-action@v3.4.0
+      uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a # v3.4.0

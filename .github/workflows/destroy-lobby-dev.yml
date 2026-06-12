@@ -25,13 +25,13 @@ jobs:
           persist-credentials: false
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@633526dcc9c26211a4282d6d8de3d8b5cb7ad07b
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: arn:aws:iam::549475122024:role/devops-web-lf2-dev-github-apply
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform and Terragrunt
-        uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a
+        uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a # v3.4.0
 
       - name: Destroy lobby service
         working-directory: infra/live/dev

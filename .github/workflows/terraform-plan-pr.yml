@@ -35,18 +35,18 @@ jobs:
       LOBBY_IMAGE_TAG: sha-${{ github.sha }}
       PLAN_FILE: ${{ runner.temp }}/${{ matrix.environment }}-plan.txt
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ matrix.plan_role_arn }}
           aws-region: ${{ matrix.aws_region }}
 
       - name: Setup Terraform and Terragrunt
-        uses: gruntwork-io/terragrunt-action@v3.4.0
+        uses: gruntwork-io/terragrunt-action@4ed5b7344c80315e5357f28f36159fc980bc2d5a # v3.4.0
 
       - name: Terragrunt format check
         run: terragrunt hcl format --check --diff --working-dir infra
@@ -71,7 +71,7 @@ jobs:
             | tee "$PLAN_FILE"
 
       - name: Upload plan artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ matrix.environment }}-terraform-plan
           path: ${{ env.PLAN_FILE }}
@@ -79,7 +79,7 @@ jobs:
 
       - name: Update sticky PR plan comment
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           ENVIRONMENT: ${{ matrix.environment }}
           PLAN_FILE: ${{ env.PLAN_FILE }}

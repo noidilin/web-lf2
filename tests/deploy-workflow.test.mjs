@@ -49,13 +49,13 @@ test('CI workflow owns local test concerns before deployment', () => {
   assert.match(ciWorkflow, /lobby-tests:/);
   assert.match(ciWorkflow, /workflow-tests:/);
   assert.match(ciWorkflow, /browser-smoke:/);
-  assert.match(ciWorkflow, /npm run build:static/);
-  assert.match(ciWorkflow, /npm run check:static/);
+  assert.match(ciWorkflow, /pnpm run build:static/);
+  assert.match(ciWorkflow, /pnpm run check:static/);
   assert.match(ciWorkflow, /tests\/build-static\.test\.mjs tests\/check-static\.test\.mjs/);
-  assert.match(ciWorkflow, /npm run test:lobby:image/);
-  assert.match(ciWorkflow, /npm run test:lobby/);
+  assert.match(ciWorkflow, /pnpm run test:lobby:image/);
+  assert.match(ciWorkflow, /pnpm run test:lobby/);
   assert.match(ciWorkflow, /tests\/lobby-hardening\.test\.mjs tests\/lobby-infrastructure\.test\.mjs/);
-  assert.match(ciWorkflow, /npx playwright test/);
+  assert.match(ciWorkflow, /pnpm exec playwright test/);
   assert.match(ciWorkflow, /\.github\/actions\/\*\*/);
 });
 
@@ -117,8 +117,8 @@ test('preflight installs lobby workspace dependencies for app checks before depl
   assert.match(deployWorkflow, /role-to-assume: \$\{\{ needs\.resolve-environment\.outputs\.plan_role_arn \}\}/);
   assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/setup-node-pnpm/);
   assert.match(deploymentAutomation, /pnpm install --frozen-lockfile/);
-  assert.match(deployWorkflow, /npm run build:static/);
-  assert.match(deployWorkflow, /npm run check:static/);
+  assert.match(deployWorkflow, /pnpm run build:static/);
+  assert.match(deployWorkflow, /pnpm run check:static/);
   assert.match(deployWorkflow, /tests\/deploy-workflow\.test\.mjs/);
   assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/preflight-iac/);
   assert.match(preflightIacAction, /terragrunt hcl format --check --diff --working-dir infra/);
