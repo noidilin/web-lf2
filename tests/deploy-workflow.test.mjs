@@ -93,11 +93,12 @@ test('resolve-environment maps dev and prod explicitly', () => {
 test('preflight uses plan role and runs app plus IaC checks before deploy', () => {
   assert.match(deployWorkflow, /preflight:[\s\S]+needs: resolve-environment/);
   assert.match(deployWorkflow, /role-to-assume: \$\{\{ needs\.resolve-environment\.outputs\.plan_role_arn \}\}/);
+  assert.match(deployWorkflow, /pnpm install --frozen-lockfile/);
   assert.match(deployWorkflow, /npm run build:static/);
   assert.match(deployWorkflow, /npm run check:static/);
   assert.match(deployWorkflow, /tests\/deploy-workflow\.test\.mjs/);
   assert.match(deployWorkflow, /terragrunt hcl format --check --diff --working-dir infra/);
-  assert.match(deployWorkflow, /find infra\/catalog\/modules -name "\*\.tf" -exec terraform fmt -check -diff \{\} \\;/);
+  assert.match(deployWorkflow, /terraform fmt -check -diff -recursive infra\/catalog\/modules/);
   assert.match(deployWorkflow, /terragrunt stack run validate --non-interactive --tf-forward-stdout/);
   assert.match(deployWorkflow, /terragrunt stack run plan --non-interactive --tf-forward-stdout/);
   assert.match(deployWorkflow, /--queue-exclude-dir '\.terragrunt-stack\/deployment-identity'/);
