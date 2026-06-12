@@ -11,7 +11,7 @@ const lobbyPackage = await readFile(new URL('../apps/lobby/package.json', import
 const lobbyDockerfile = await readFile(new URL('../apps/lobby/Dockerfile', import.meta.url), 'utf8');
 const lobbyDockerSmokeScript = await readFile(new URL('../apps/lobby/scripts/docker-smoke.mjs', import.meta.url), 'utf8');
 const deployWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
-const terraformPlanWorkflow = await readFile(new URL('../.github/workflows/terraform-plan.yml', import.meta.url), 'utf8');
+const terraformPlanWorkflow = await readFile(new URL('../.github/workflows/terraform-plan-pr.yml', import.meta.url), 'utf8');
 const deploymentIdentity = await readFile(new URL('../infra/catalog/modules/deployment-identity/main.tf', import.meta.url), 'utf8');
 const lobbyTestMarker = '/tmp/f-lobby-test-stage-success';
 const lobbyProductionMarker = '/app/.f-lobby-test-stage-success';
@@ -168,6 +168,9 @@ test('static deployment uses deployed lobby URL before smoke tests', () => {
 });
 
 test('terraform plan workflow uses explicit matrix and sticky artifact-backed comments', () => {
+  assert.equal(existsSync(new URL('../.github/workflows/terraform-plan.yml', import.meta.url)), false);
+  assert.match(terraformPlanWorkflow, /name: Terraform Plan/);
+  assert.match(terraformPlanWorkflow, /\.github\/workflows\/terraform-plan-pr\.yml/);
   assert.match(terraformPlanWorkflow, /matrix:[\s\S]+include:[\s\S]+environment: dev[\s\S]+infra_dir: infra\/live\/dev[\s\S]+devops-web-lf2-dev-github-plan/);
   assert.match(terraformPlanWorkflow, /environment: prod[\s\S]+infra_dir: infra\/live\/prod[\s\S]+devops-web-lf2-prod-github-plan/);
   assert.match(terraformPlanWorkflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
