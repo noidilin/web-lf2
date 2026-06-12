@@ -508,6 +508,7 @@ resource "aws_iam_policy" "github_apply_lobby" {
           "ec2:DeleteVpc",
           "ec2:Describe*",
           "ec2:DetachInternetGateway",
+          "ec2:DisassociateAddress",
           "ec2:DisassociateRouteTable",
           "ec2:ModifySubnetAttribute",
           "ec2:ModifyVpcAttribute",
