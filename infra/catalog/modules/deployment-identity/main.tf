@@ -10,7 +10,7 @@ data "aws_iam_openid_connect_provider" "github" {
 # Plan role — used on pull requests and main-branch deploy preflight for terraform plan
 resource "aws_iam_role" "github_plan" {
   name                 = "${var.name_prefix}-github-plan"
-  description          = "GitHub Actions OIDC role for pull-request and main-branch Terraform plans"
+  description          = "GitHub Actions OIDC role for pull-request Terraform plans"
   max_session_duration = 3600
   permissions_boundary = local.lab_gitops_oidc_apply_permissions_boundary_arn
 
@@ -26,8 +26,6 @@ resource "aws_iam_role" "github_plan" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          "ForAnyValue:StringEquals" = {
             "token.actions.githubusercontent.com:sub" = [
               "repo:${var.github_repo}:pull_request",
               "repo:${var.github_repo}:ref:refs/heads/main"

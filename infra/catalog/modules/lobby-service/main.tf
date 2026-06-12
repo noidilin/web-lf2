@@ -252,7 +252,7 @@ resource "aws_ecs_task_definition" "lobby" {
 
   lifecycle {
     precondition {
-      condition = can(regex("^sha-[0-9a-f]{40}$", local.selected_image_tag))
+      condition     = can(regex("^sha-[0-9a-f]{40}$", local.selected_image_tag))
       error_message = "image_tag must be null or a canonical sha-<40 character lowercase git SHA> tag."
     }
 

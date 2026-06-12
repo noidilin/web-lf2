@@ -183,7 +183,8 @@ test('terraform plan workflow uses explicit matrix and sticky artifact-backed co
 });
 
 test('plan role trust is limited to pull requests and main branch only', () => {
-  assert.match(deploymentIdentity, /ForAnyValue:StringEquals/);
+  assert.doesNotMatch(deploymentIdentity, /ForAnyValue:StringEquals/);
+  assert.match(deploymentIdentity, /StringEquals\s*=\s*\{[\s\S]+token\.actions\.githubusercontent\.com:aud[\s\S]+token\.actions\.githubusercontent\.com:sub/);
   assert.match(deploymentIdentity, /repo:\$\{var\.github_repo\}:pull_request/);
   assert.match(deploymentIdentity, /repo:\$\{var\.github_repo\}:ref:refs\/heads\/main/);
   assert.match(deploymentIdentity, /repo:\$\{var\.github_repo\}:environment:\$\{var\.environment\}/);
