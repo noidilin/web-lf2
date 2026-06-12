@@ -70,16 +70,17 @@ variable "ecr_repository_url" {
 }
 
 variable "image_tag" {
-  description = "Immutable lobby image tag selected by the deployment workflow (sha-<git sha>)"
+  description = "Immutable lobby image tag selected by the deployment workflow (sha-<git sha>). Required for create/update; destroy may use null or the zero-SHA sentinel."
   type        = string
-  nullable    = false
+  nullable    = true
+  default     = null
 
   validation {
     condition = (
-      can(regex("^sha-[0-9a-f]{40}$", var.image_tag))
-      && var.image_tag != "sha-0000000000000000000000000000000000000000"
+      var.image_tag == null
+      || can(regex("^sha-[0-9a-f]{40}$", var.image_tag))
     )
-    error_message = "image_tag must use a real canonical sha-<40 character lowercase git SHA> tag, not the zero-SHA sentinel."
+    error_message = "image_tag must be null or a canonical sha-<40 character lowercase git SHA> tag."
   }
 }
 

@@ -1,0 +1,445 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'apps/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - 'infra/catalog/modules/deployment-identity/**'
+      - 'infra/catalog/modules/lobby-bootstrap/**'
+      - 'infra/catalog/modules/lobby-service/**'
+      - 'infra/catalog/modules/networking/**'
+      - 'infra/catalog/modules/observability/**'
+      - 'infra/catalog/modules/static-site/**'
+      - 'infra/catalog/units/lobby-bootstrap/**'
+      - 'infra/catalog/units/lobby-service/**'
+      - 'infra/catalog/units/networking/**'
+      - 'infra/catalog/units/observability/**'
+      - 'infra/catalog/units/static-site/**'
+      - 'infra/live/dev/terragrunt.stack.hcl'
+      - 'infra/live/prod/terragrunt.stack.hcl'
+      - 'infra/live/root.hcl'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment to deploy.'
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - prod
+      lobby_image_tag:
+        description: 'Optional canonical sha-<40 hex> F.Lobby image tag for prod promotion. Defaults to selected ref SHA.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  resolve-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      infra_dir: ${{ steps.resolve.outputs.infra_dir }}
+      aws_region: ${{ steps.resolve.outputs.aws_region }}
+      plan_role_arn: ${{ steps.resolve.outputs.plan_role_arn }}
+      apply_role_arn: ${{ steps.resolve.outputs.apply_role_arn }}
+    steps:
+      - name: Resolve environment
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          REQUESTED_ENV="${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}"
+
+          case "$REQUESTED_ENV" in
+            dev)
+              environment=dev
+              infra_dir=infra/live/dev
+              aws_region=ap-northeast-1
+              plan_role_arn=arn:aws:iam::549475122024:role/devops-web-lf2-dev-github-plan
+              apply_role_arn=arn:aws:iam::549475122024:role/devops-web-lf2-dev-github-apply
+              ;;
+            prod)
+              environment=prod
+              infra_dir=infra/live/prod
+              aws_region=ap-northeast-1
+              plan_role_arn=arn:aws:iam::549475122024:role/devops-web-lf2-prod-github-plan
+              apply_role_arn=arn:aws:iam::549475122024:role/devops-web-lf2-prod-github-apply
+              ;;
+            *)
+              echo "Unsupported deployment environment: $REQUESTED_ENV" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "infra_dir=$infra_dir" >> "$GITHUB_OUTPUT"
+          echo "aws_region=$aws_region" >> "$GITHUB_OUTPUT"
+          echo "plan_role_arn=$plan_role_arn" >> "$GITHUB_OUTPUT"
+          echo "apply_role_arn=$apply_role_arn" >> "$GITHUB_OUTPUT"
+
+  preflight:
+    needs: resolve-environment
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ needs.resolve-environment.outputs.aws_region }}
+      INFRA_DIR: ${{ needs.resolve-environment.outputs.infra_dir }}
+      LOBBY_IMAGE_TAG: sha-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run app and workflow checks
+        run: |
+          npm run build:static
+          npm run check:static
+          node --test tests/build-static.test.mjs tests/check-static.test.mjs tests/deploy-workflow.test.mjs tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs tests/observability.test.mjs tests/phase-2-runbook.test.mjs
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ needs.resolve-environment.outputs.plan_role_arn }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@v3.4.0
+
+      - name: Terragrunt format check
+        run: terragrunt hcl format --check --diff --working-dir infra
+
+      - name: Terraform module format check
+        run: find infra/catalog/modules -name "*.tf" -exec terraform fmt -check -diff {} \;
+
+      - name: Terragrunt validate
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack run validate --non-interactive --tf-forward-stdout \
+            --queue-exclude-dir '.terragrunt-stack/deployment-identity'
+
+      - name: Terragrunt plan
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack run plan --non-interactive --tf-forward-stdout \
+            --queue-exclude-dir '.terragrunt-stack/deployment-identity'
+
+  deploy:
+    needs:
+      - resolve-environment
+      - preflight
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-environment.outputs.environment }}
+    env:
+      AWS_REGION: ${{ needs.resolve-environment.outputs.aws_region }}
+      INFRA_DIR: ${{ needs.resolve-environment.outputs.infra_dir }}
+      TARGET_ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
+      LOBBY_IMAGE_TAG: ${{ needs.resolve-environment.outputs.environment == 'prod' && github.event_name == 'workflow_dispatch' && inputs.lobby_image_tag || format('sha-{0}', github.sha) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate prod lobby image tag
+        if: env.TARGET_ENVIRONMENT == 'prod'
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$LOBBY_IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
+            echo "lobby_image_tag must be canonical sha-<40 lowercase hex>; got '$LOBBY_IMAGE_TAG'" >&2
+            exit 1
+          fi
+
+          echo "Promoting F.Lobby image tag $LOBBY_IMAGE_TAG"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ needs.resolve-environment.outputs.apply_role_arn }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform and Terragrunt
+        uses: gruntwork-io/terragrunt-action@v3.4.0
+
+      - name: Apply lobby networking
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-strict-include
+
+      - name: Apply lobby bootstrap
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/lobby-bootstrap' \
+            --queue-strict-include
+
+      - name: Get lobby deployment outputs
+        id: outputs
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          set -euo pipefail
+
+          ECR_URL=$(terragrunt stack output --format raw lobby-bootstrap.ecr_repository_url --non-interactive --no-stack-generate)
+          ECR_NAME=$(terragrunt stack output --format raw lobby-bootstrap.ecr_repository_name --non-interactive --no-stack-generate)
+
+          if [[ -z "$ECR_URL" || -z "$ECR_NAME" ]]; then
+            echo "lobby-bootstrap ECR outputs are incomplete" >&2
+            exit 1
+          fi
+
+          echo "ecr_repository_name=$ECR_NAME" >> "$GITHUB_OUTPUT"
+          echo "ecr_repository_url=$ECR_URL" >> "$GITHUB_OUTPUT"
+          echo "ecr_registry=${ECR_URL%/*}" >> "$GITHUB_OUTPUT"
+
+      - name: Build lobby image
+        if: env.TARGET_ENVIRONMENT == 'dev'
+        run: |
+          docker build \
+            --tag "${{ steps.outputs.outputs.ecr_repository_url }}:${{ env.LOBBY_IMAGE_TAG }}" \
+            apps/lobby
+
+      - name: Push lobby image
+        if: env.TARGET_ENVIRONMENT == 'dev'
+        run: |
+          set -euo pipefail
+
+          aws ecr get-login-password --region "${AWS_REGION}" \
+            | docker login --username AWS --password-stdin "${{ steps.outputs.outputs.ecr_registry }}"
+
+          if aws ecr describe-images \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-ids "imageTag=${{ env.LOBBY_IMAGE_TAG }}" >/dev/null 2>&1; then
+            echo "Reusing existing immutable lobby image tag ${{ env.LOBBY_IMAGE_TAG }}"
+          else
+            docker push "${{ steps.outputs.outputs.ecr_repository_url }}:${{ env.LOBBY_IMAGE_TAG }}"
+          fi
+
+      - name: Verify promoted image exists in ECR
+        if: env.TARGET_ENVIRONMENT == 'prod'
+        run: |
+          set -euo pipefail
+
+          if ! DIGEST=$(aws ecr describe-images \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-ids "imageTag=${LOBBY_IMAGE_TAG}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text); then
+            echo "F.Lobby image tag '$LOBBY_IMAGE_TAG' was not found in ECR repository '${{ steps.outputs.outputs.ecr_repository_name }}'" >&2
+            exit 1
+          fi
+
+          if [[ -z "$DIGEST" || "$DIGEST" == "None" ]]; then
+            echo "ECR did not return a digest for F.Lobby image tag '$LOBBY_IMAGE_TAG'" >&2
+            exit 1
+          fi
+
+          echo "Verified existing F.Lobby image ${{ steps.outputs.outputs.ecr_repository_url }}:${LOBBY_IMAGE_TAG}@$DIGEST"
+
+      - name: Promote lobby image alias
+        run: |
+          set -euo pipefail
+
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-ids "imageTag=${LOBBY_IMAGE_TAG}" \
+            --query 'images[0].imageManifest' \
+            --output text)
+
+          if [[ -z "$MANIFEST" || "$MANIFEST" == "None" ]]; then
+            echo "ECR did not return a manifest for F.Lobby image tag '$LOBBY_IMAGE_TAG'" >&2
+            exit 1
+          fi
+
+          aws ecr put-image \
+            --repository-name "${{ steps.outputs.outputs.ecr_repository_name }}" \
+            --image-tag "${TARGET_ENVIRONMENT}" \
+            --image-manifest "$MANIFEST" >/dev/null
+
+          echo "Updated mutable ECR observability alias ${TARGET_ENVIRONMENT} -> $LOBBY_IMAGE_TAG"
+
+      - name: Terragrunt apply lobby service
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include
+
+      - name: Refresh lobby outputs
+        id: refreshed
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          set -euo pipefail
+
+          SERVICE_OUTPUTS=$(terragrunt stack output --format json lobby-service --non-interactive --no-stack-generate)
+          CLUSTER=$(jq -r '."lobby-service".ecs_cluster_name // empty' <<< "$SERVICE_OUTPUTS")
+          SERVICE=$(jq -r '."lobby-service".ecs_service_name // empty' <<< "$SERVICE_OUTPUTS")
+          LOBBY_URL=$(jq -r '."lobby-service".lobby_url // empty' <<< "$SERVICE_OUTPUTS")
+
+          if [[ -z "$CLUSTER" || -z "$SERVICE" || -z "$LOBBY_URL" ]]; then
+            echo "lobby-service outputs are incomplete" >&2
+            echo "$SERVICE_OUTPUTS" >&2
+            exit 1
+          fi
+
+          echo "ecs_cluster_name=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "ecs_service_name=$SERVICE" >> "$GITHUB_OUTPUT"
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ steps.refreshed.outputs.ecs_cluster_name }}" \
+            --services "${{ steps.refreshed.outputs.ecs_service_name }}"
+
+      - name: Run deployed lobby contract checks
+        env:
+          LOBBY_BASE_URL: ${{ steps.refreshed.outputs.lobby_url }}
+        run: node --test tests/deployed-lobby-contract.test.mjs
+
+      - name: Prepare Terragrunt stack outputs
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack generate --non-interactive
+          terragrunt stack run init --non-interactive \
+            --queue-include-dir '.terragrunt-stack/networking' \
+            --queue-include-dir '.terragrunt-stack/lobby-bootstrap' \
+            --queue-include-dir '.terragrunt-stack/lobby-service' \
+            --queue-strict-include
+
+      - name: Get lobby URL
+        id: lobby
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          set -euo pipefail
+
+          LOBBY_URL=$(terragrunt stack output --format raw lobby-service.lobby_url --non-interactive --queue-include-dir '.terragrunt-stack/lobby-service' --queue-strict-include)
+
+          if [[ -z "$LOBBY_URL" ]]; then
+            echo "lobby-service lobby_url output is empty" >&2
+            exit 1
+          fi
+
+          echo "lobby_url=$LOBBY_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Build static artifact
+        env:
+          LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
+        run: npm run build:static
+
+      - name: Terragrunt apply static site
+        working-directory: ${{ env.INFRA_DIR }}
+        run: terragrunt stack run apply --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include
+
+      - name: Get deployment outputs
+        id: static_outputs
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          set -euo pipefail
+
+          BUCKET=$(terragrunt stack output --raw static-site.bucket_name --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+          DIST_ID=$(terragrunt stack output --raw static-site.cloudfront_distribution_id --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+          GAME_URL=$(terragrunt stack output --raw static-site.game_url --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+
+          if [[ -z "$BUCKET" ]]; then
+            echo "Static site bucket_name output is empty" >&2
+            exit 1
+          fi
+
+          echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
+          echo "game_url=$GAME_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Sync static artifact to S3
+        run: |
+          aws s3 sync dist/static/ "s3://${{ steps.static_outputs.outputs.bucket_name }}/" \
+            --delete \
+            --cache-control "max-age=86400"
+
+      - name: Invalidate CloudFront cache
+        if: steps.static_outputs.outputs.distribution_id != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.static_outputs.outputs.distribution_id }}" \
+            --paths "/*"
+
+      - name: Wait for deployed lobby
+        if: steps.static_outputs.outputs.game_url != ''
+        timeout-minutes: 30
+        env:
+          LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..180}; do
+            HEALTH_STATUS=$(curl --silent --show-error --location --max-time 10 --output /tmp/lobby-health.txt --write-out "%{http_code}" "$LOBBY_BASE_URL/healthz" || true)
+            PROTOCOL_STATUS=$(curl --silent --show-error --location --max-time 10 --output /tmp/lobby-protocol.txt --write-out "%{http_code}" "$LOBBY_BASE_URL/protocol" || true)
+
+            if [[ "$HEALTH_STATUS" == "200" && "$PROTOCOL_STATUS" == "200" ]]; then
+              echo "Lobby is ready at $LOBBY_BASE_URL"
+              exit 0
+            fi
+
+            echo "Waiting for lobby readiness (attempt $attempt/180): /healthz=$HEALTH_STATUS /protocol=$PROTOCOL_STATUS"
+            sleep 10
+          done
+
+          echo "Lobby did not become ready at $LOBBY_BASE_URL" >&2
+          echo "Last /healthz response:" >&2
+          cat /tmp/lobby-health.txt >&2 || true
+          echo "Last /protocol response:" >&2
+          cat /tmp/lobby-protocol.txt >&2 || true
+          exit 1
+
+      - name: Run deployed smoke test
+        if: steps.static_outputs.outputs.game_url != ''
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.static_outputs.outputs.game_url }}
+          LOBBY_BASE_URL: ${{ steps.lobby.outputs.lobby_url }}
+        run: npx playwright test --config playwright.deployed.config.mjs
+
+      - name: Terragrunt apply observability
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          terragrunt stack run apply --non-interactive --tf-forward-stdout \
+            --queue-include-dir '.terragrunt-stack/observability' \
+            --queue-strict-include
+
+      - name: Show observability outputs
+        working-directory: ${{ env.INFRA_DIR }}
+        run: terragrunt stack output --format json observability --non-interactive --no-stack-generate

@@ -73,7 +73,7 @@ This project uses GitHub Actions OIDC for AWS authentication — no long-lived k
 
 | Role | Name | Trust Condition | Purpose |
 |---|---|---|---|
-| Plan | `devops-web-lf2-{env}-github-plan` | `repo:noidilin/web-lf2:pull_request` | `terraform plan`, read state |
+| Plan | `devops-web-lf2-{env}-github-plan` | `repo:noidilin/web-lf2:pull_request` and `repo:noidilin/web-lf2:ref:refs/heads/main` | `terraform plan`, read state |
 | Apply | `devops-web-lf2-{env}-github-apply` | `repo:noidilin/web-lf2:environment:{env}` | `terraform apply`, S3 sync, ECR push, ECS deploy |
 
 Both GitHub OIDC Terraform roles carry `lab-gitops-oidc-apply-permissions-boundary`. Workload/runtime roles created by Terraform should carry `lab-devops-permissions-boundary`.
