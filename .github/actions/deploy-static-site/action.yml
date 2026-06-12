@@ -1,0 +1,114 @@
+name: Deploy static site
+description: Build, publish, invalidate, and smoke-test the static site against the deployed lobby.
+inputs:
+  infra-dir:
+    description: Terragrunt live directory for the target environment.
+    required: true
+  lobby-url:
+    description: Deployed lobby base URL used to build and verify the static artifact.
+    required: true
+outputs:
+  bucket-name:
+    description: S3 bucket that hosts the static site.
+    value: ${{ steps.static_outputs.outputs.bucket_name }}
+  distribution-id:
+    description: CloudFront distribution ID for the static site.
+    value: ${{ steps.static_outputs.outputs.distribution_id }}
+  game-url:
+    description: Deployed game URL.
+    value: ${{ steps.static_outputs.outputs.game_url }}
+runs:
+  using: composite
+  steps:
+    - name: Prepare Terragrunt stack outputs
+      shell: bash
+      working-directory: ${{ inputs.infra-dir }}
+      run: |
+        terragrunt stack generate --non-interactive
+        terragrunt stack run init --non-interactive \
+          --queue-include-dir '.terragrunt-stack/networking' \
+          --queue-include-dir '.terragrunt-stack/lobby-bootstrap' \
+          --queue-include-dir '.terragrunt-stack/lobby-service' \
+          --queue-strict-include
+
+    - name: Build static artifact
+      shell: bash
+      env:
+        LOBBY_BASE_URL: ${{ inputs.lobby-url }}
+      run: npm run build:static
+
+    - name: Terragrunt apply static site
+      shell: bash
+      working-directory: ${{ inputs.infra-dir }}
+      run: terragrunt stack run apply --non-interactive --tf-forward-stdout --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include
+
+    - name: Get deployment outputs
+      id: static_outputs
+      shell: bash
+      working-directory: ${{ inputs.infra-dir }}
+      run: |
+        set -euo pipefail
+
+        BUCKET=$(terragrunt stack output --raw static-site.bucket_name --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+        DIST_ID=$(terragrunt stack output --raw static-site.cloudfront_distribution_id --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+        GAME_URL=$(terragrunt stack output --raw static-site.game_url --non-interactive --queue-include-dir '.terragrunt-stack/static-site' --queue-strict-include)
+
+        if [[ -z "$BUCKET" ]]; then
+          echo "Static site bucket_name output is empty" >&2
+          exit 1
+        fi
+
+        echo "bucket_name=$BUCKET" >> "$GITHUB_OUTPUT"
+        echo "distribution_id=$DIST_ID" >> "$GITHUB_OUTPUT"
+        echo "game_url=$GAME_URL" >> "$GITHUB_OUTPUT"
+
+    - name: Sync static artifact to S3
+      shell: bash
+      run: |
+        aws s3 sync dist/static/ "s3://${{ steps.static_outputs.outputs.bucket_name }}/" \
+          --delete \
+          --cache-control "max-age=86400"
+
+    - name: Invalidate CloudFront cache
+      if: ${{ steps.static_outputs.outputs.distribution_id != '' }}
+      shell: bash
+      run: |
+        aws cloudfront create-invalidation \
+          --distribution-id "${{ steps.static_outputs.outputs.distribution_id }}" \
+          --paths "/*"
+
+    - name: Wait for deployed lobby
+      if: ${{ steps.static_outputs.outputs.game_url != '' }}
+      shell: bash
+      env:
+        LOBBY_BASE_URL: ${{ inputs.lobby-url }}
+      run: |
+        set -euo pipefail
+
+        for attempt in {1..180}; do
+          HEALTH_STATUS=$(curl --silent --show-error --location --max-time 10 --output /tmp/lobby-health.txt --write-out "%{http_code}" "$LOBBY_BASE_URL/healthz" || true)
+          PROTOCOL_STATUS=$(curl --silent --show-error --location --max-time 10 --output /tmp/lobby-protocol.txt --write-out "%{http_code}" "$LOBBY_BASE_URL/protocol" || true)
+
+          if [[ "$HEALTH_STATUS" == "200" && "$PROTOCOL_STATUS" == "200" ]]; then
+            echo "Lobby is ready at $LOBBY_BASE_URL"
+            exit 0
+          fi
+
+          echo "Waiting for lobby readiness (attempt $attempt/180): /healthz=$HEALTH_STATUS /protocol=$PROTOCOL_STATUS"
+          sleep 10
+        done
+
+        echo "Lobby did not become ready at $LOBBY_BASE_URL" >&2
+        echo "Last /healthz response:" >&2
+        cat /tmp/lobby-health.txt >&2 || true
+        echo "Last /protocol response:" >&2
+        cat /tmp/lobby-protocol.txt >&2 || true
+        exit 1
+
+    - name: Run deployed smoke test
+      if: ${{ steps.static_outputs.outputs.game_url != '' }}
+      shell: bash
+      env:
+        PLAYWRIGHT_BASE_URL: ${{ steps.static_outputs.outputs.game_url }}
+        LOBBY_BASE_URL: ${{ inputs.lobby-url }}
+      run: npx playwright test --config playwright.deployed.config.mjs

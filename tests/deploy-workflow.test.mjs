@@ -11,6 +11,21 @@ const lobbyPackage = await readFile(new URL('../apps/lobby/package.json', import
 const lobbyDockerfile = await readFile(new URL('../apps/lobby/Dockerfile', import.meta.url), 'utf8');
 const lobbyDockerSmokeScript = await readFile(new URL('../apps/lobby/scripts/docker-smoke.mjs', import.meta.url), 'utf8');
 const deployWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+const resolveEnvironmentAction = await readFile(new URL('../.github/actions/resolve-deploy-environment/action.yml', import.meta.url), 'utf8');
+const setupNodePnpmAction = await readFile(new URL('../.github/actions/setup-node-pnpm/action.yml', import.meta.url), 'utf8');
+const setupIacToolsAction = await readFile(new URL('../.github/actions/setup-iac-tools/action.yml', import.meta.url), 'utf8');
+const preflightIacAction = await readFile(new URL('../.github/actions/preflight-iac/action.yml', import.meta.url), 'utf8');
+const deployLobbyAction = await readFile(new URL('../.github/actions/deploy-lobby/action.yml', import.meta.url), 'utf8');
+const deployStaticSiteAction = await readFile(new URL('../.github/actions/deploy-static-site/action.yml', import.meta.url), 'utf8');
+const deploymentAutomation = [
+  deployWorkflow,
+  resolveEnvironmentAction,
+  setupNodePnpmAction,
+  setupIacToolsAction,
+  preflightIacAction,
+  deployLobbyAction,
+  deployStaticSiteAction,
+].join('\n');
 const terraformPlanWorkflow = await readFile(new URL('../.github/workflows/terraform-plan-pr.yml', import.meta.url), 'utf8');
 const deploymentIdentity = await readFile(new URL('../infra/catalog/modules/deployment-identity/main.tf', import.meta.url), 'utf8');
 const lobbyTestMarker = '/tmp/f-lobby-test-stage-success';
@@ -41,6 +56,7 @@ test('CI workflow owns local test concerns before deployment', () => {
   assert.match(ciWorkflow, /npm run test:lobby/);
   assert.match(ciWorkflow, /tests\/lobby-hardening\.test\.mjs tests\/lobby-infrastructure\.test\.mjs/);
   assert.match(ciWorkflow, /npx playwright test/);
+  assert.match(ciWorkflow, /\.github\/actions\/\*\*/);
 });
 
 test('lobby Dockerfile exposes a test-gated production image', () => {
@@ -87,10 +103,11 @@ test('deploy workflow is the environment-parameterized deployment entrypoint', (
 
 test('resolve-environment maps dev and prod explicitly', () => {
   assert.match(deployWorkflow, /resolve-environment:/);
-  assert.match(deployWorkflow, /case "\$REQUESTED_ENV" in/);
-  assert.match(deployWorkflow, /dev\)[\s\S]+infra_dir=infra\/live\/dev[\s\S]+aws_region=ap-northeast-1[\s\S]+devops-web-lf2-dev-github-plan[\s\S]+devops-web-lf2-dev-github-apply/);
-  assert.match(deployWorkflow, /prod\)[\s\S]+infra_dir=infra\/live\/prod[\s\S]+aws_region=ap-northeast-1[\s\S]+devops-web-lf2-prod-github-plan[\s\S]+devops-web-lf2-prod-github-apply/);
-  assert.match(deployWorkflow, /Unsupported deployment environment/);
+  assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/resolve-deploy-environment/);
+  assert.match(resolveEnvironmentAction, /case "\$REQUESTED_ENV" in/);
+  assert.match(resolveEnvironmentAction, /dev\)[\s\S]+infra_dir=infra\/live\/dev[\s\S]+aws_region=ap-northeast-1[\s\S]+devops-web-lf2-dev-github-plan[\s\S]+devops-web-lf2-dev-github-apply/);
+  assert.match(resolveEnvironmentAction, /prod\)[\s\S]+infra_dir=infra\/live\/prod[\s\S]+aws_region=ap-northeast-1[\s\S]+devops-web-lf2-prod-github-plan[\s\S]+devops-web-lf2-prod-github-apply/);
+  assert.match(resolveEnvironmentAction, /Unsupported deployment environment/);
 });
 
 test('preflight installs lobby workspace dependencies for app checks before deploy', () => {
@@ -98,73 +115,78 @@ test('preflight installs lobby workspace dependencies for app checks before depl
   assert.match(pnpmLockfile, /apps\/lobby:[\s\S]+ws:[\s\S]+specifier: ~0\.4\.25/);
   assert.match(deployWorkflow, /preflight:[\s\S]+needs: resolve-environment/);
   assert.match(deployWorkflow, /role-to-assume: \$\{\{ needs\.resolve-environment\.outputs\.plan_role_arn \}\}/);
-  assert.match(deployWorkflow, /pnpm install --frozen-lockfile/);
+  assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/setup-node-pnpm/);
+  assert.match(deploymentAutomation, /pnpm install --frozen-lockfile/);
   assert.match(deployWorkflow, /npm run build:static/);
   assert.match(deployWorkflow, /npm run check:static/);
   assert.match(deployWorkflow, /tests\/deploy-workflow\.test\.mjs/);
-  assert.match(deployWorkflow, /terragrunt hcl format --check --diff --working-dir infra/);
-  assert.match(deployWorkflow, /terraform fmt -check -diff -recursive infra\/catalog\/modules/);
-  assert.match(deployWorkflow, /terragrunt stack run validate --non-interactive --tf-forward-stdout/);
-  assert.match(deployWorkflow, /terragrunt stack run plan --non-interactive --tf-forward-stdout/);
-  assert.match(deployWorkflow, /--queue-exclude-dir '\.terragrunt-stack\/deployment-identity'/);
+  assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/preflight-iac/);
+  assert.match(preflightIacAction, /terragrunt hcl format --check --diff --working-dir infra/);
+  assert.match(preflightIacAction, /terraform fmt -check -diff -recursive infra\/catalog\/modules/);
+  assert.match(preflightIacAction, /terragrunt stack run validate --non-interactive --tf-forward-stdout/);
+  assert.match(preflightIacAction, /terragrunt stack run plan --non-interactive --tf-forward-stdout/);
+  assert.match(preflightIacAction, /--queue-exclude-dir '\.terragrunt-stack\/deployment-identity'/);
 });
 
 test('deploy job is GitHub Environment-bound and applies lobby before static before observability', () => {
   assert.match(deployWorkflow, /deploy:[\s\S]+environment: \$\{\{ needs\.resolve-environment\.outputs\.environment \}\}/);
   assert.match(deployWorkflow, /role-to-assume: \$\{\{ needs\.resolve-environment\.outputs\.apply_role_arn \}\}/);
 
-  const lobbyIndex = deployWorkflow.indexOf('- name: Terragrunt apply lobby service');
-  const staticIndex = deployWorkflow.indexOf('- name: Terragrunt apply static site');
+  const lobbyIndex = deployWorkflow.indexOf('- name: Deploy lobby');
+  const staticIndex = deployWorkflow.indexOf('- name: Deploy static site');
   const observabilityIndex = deployWorkflow.indexOf('- name: Terragrunt apply observability');
   assert.notEqual(lobbyIndex, -1);
   assert.notEqual(staticIndex, -1);
   assert.notEqual(observabilityIndex, -1);
   assert.ok(lobbyIndex < staticIndex);
   assert.ok(staticIndex < observabilityIndex);
+  assert.match(deployLobbyAction, /- name: Terragrunt apply lobby service/);
+  assert.match(deployStaticSiteAction, /- name: Terragrunt apply static site/);
 });
 
 test('dev deployment builds and pushes immutable SHA-tagged artifacts', () => {
   assert.match(deployWorkflow, /LOBBY_IMAGE_TAG:\s+\$\{\{ needs\.resolve-environment\.outputs\.environment == 'prod' && github\.event_name == 'workflow_dispatch' && inputs\.lobby_image_tag \|\| format\('sha-\{0\}', github\.sha\) \}\}/);
-  assert.match(deployWorkflow, /- name: Build lobby image[\s\S]+if: env\.TARGET_ENVIRONMENT == 'dev'[\s\S]+docker build/);
-  assert.match(deployWorkflow, /--tag "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
-  assert.match(deployWorkflow, /aws ecr get-login-password/);
-  assert.match(deployWorkflow, /aws ecr describe-images/);
-  assert.match(deployWorkflow, /docker push "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}"/);
-  assert.doesNotMatch(deployWorkflow, /:latest/);
-  assert.doesNotMatch(deployWorkflow, /aws ecs update-service/);
-  assert.doesNotMatch(deployWorkflow, /force-new-deployment/);
+  assert.match(deployWorkflow, /uses: \.\/\.github\/actions\/deploy-lobby/);
+  assert.match(deployLobbyAction, /- name: Build lobby image[\s\S]+if: \$\{\{ inputs\.target-environment == 'dev' \}\}[\s\S]+docker build/);
+  assert.match(deployLobbyAction, /--tag "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ inputs\.lobby-image-tag \}\}"/);
+  assert.match(deployLobbyAction, /aws ecr get-login-password/);
+  assert.match(deployLobbyAction, /aws ecr describe-images/);
+  assert.match(deployLobbyAction, /docker push "\$\{\{ steps\.outputs\.outputs\.ecr_repository_url \}\}:\$\{\{ inputs\.lobby-image-tag \}\}"/);
+  assert.doesNotMatch(deploymentAutomation, /:latest/);
+  assert.doesNotMatch(deploymentAutomation, /aws ecs update-service/);
+  assert.doesNotMatch(deploymentAutomation, /force-new-deployment/);
 });
 
 test('prod promotion verifies an existing SHA-tagged artifact without rebuilding', () => {
-  assert.match(deployWorkflow, /Validate prod lobby image tag[\s\S]+\^sha-\[0-9a-f\]\{40\}\$/);
-  assert.match(deployWorkflow, /Verify promoted image exists in ECR[\s\S]+aws ecr describe-images[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"/);
-  assert.match(deployWorkflow, /Promote lobby image alias[\s\S]+aws ecr batch-get-image[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"[\s\S]+aws ecr put-image[\s\S]+--image-tag "\$\{TARGET_ENVIRONMENT\}"/);
+  assert.match(deployLobbyAction, /Validate prod lobby image tag[\s\S]+\^sha-\[0-9a-f\]\{40\}\$/);
+  assert.match(deployLobbyAction, /Verify promoted image exists in ECR[\s\S]+aws ecr describe-images[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"/);
+  assert.match(deployLobbyAction, /Promote lobby image alias[\s\S]+aws ecr batch-get-image[\s\S]+--image-ids "imageTag=\$\{LOBBY_IMAGE_TAG\}"[\s\S]+aws ecr put-image[\s\S]+--image-tag "\$\{TARGET_ENVIRONMENT\}"/);
 
-  assert.match(deployWorkflow, /- name: Build lobby image[\s\S]+if: env\.TARGET_ENVIRONMENT == 'dev'/);
-  assert.match(deployWorkflow, /- name: Push lobby image[\s\S]+if: env\.TARGET_ENVIRONMENT == 'dev'/);
-  assert.match(deployWorkflow, /- name: Verify promoted image exists in ECR[\s\S]+if: env\.TARGET_ENVIRONMENT == 'prod'/);
+  assert.match(deployLobbyAction, /- name: Build lobby image[\s\S]+if: \$\{\{ inputs\.target-environment == 'dev' \}\}/);
+  assert.match(deployLobbyAction, /- name: Push lobby image[\s\S]+if: \$\{\{ inputs\.target-environment == 'dev' \}\}/);
+  assert.match(deployLobbyAction, /- name: Verify promoted image exists in ECR[\s\S]+if: \$\{\{ inputs\.target-environment == 'prod' \}\}/);
 });
 
 test('static deployment uses deployed lobby URL before smoke tests', () => {
-  const generateStepIndex = deployWorkflow.indexOf('- name: Prepare Terragrunt stack outputs');
-  const getLobbyStepIndex = deployWorkflow.indexOf('- name: Get lobby URL');
-  const waitStepIndex = deployWorkflow.indexOf('- name: Wait for deployed lobby');
-  const smokeStepIndex = deployWorkflow.indexOf('- name: Run deployed smoke test');
+  const lobbyIndex = deployWorkflow.indexOf('- name: Deploy lobby');
+  const staticIndex = deployWorkflow.indexOf('- name: Deploy static site');
+  const waitStepIndex = deployStaticSiteAction.indexOf('- name: Wait for deployed lobby');
+  const smokeStepIndex = deployStaticSiteAction.indexOf('- name: Run deployed smoke test');
 
-  assert.notEqual(generateStepIndex, -1);
-  assert.notEqual(getLobbyStepIndex, -1);
+  assert.notEqual(lobbyIndex, -1);
+  assert.notEqual(staticIndex, -1);
   assert.notEqual(waitStepIndex, -1);
   assert.notEqual(smokeStepIndex, -1);
-  assert.ok(generateStepIndex < getLobbyStepIndex);
+  assert.ok(lobbyIndex < staticIndex);
   assert.ok(waitStepIndex < smokeStepIndex);
-  assert.match(deployWorkflow, /terragrunt stack generate --non-interactive/);
-  assert.match(deployWorkflow, /terragrunt stack run init --non-interactive/);
-  assert.match(deployWorkflow, /terragrunt stack output --format raw lobby-service\.lobby_url --non-interactive --queue-include-dir '\.terragrunt-stack\/lobby-service' --queue-strict-include/);
-  assert.match(deployWorkflow, /LOBBY_BASE_URL: \$\{\{ steps\.lobby\.outputs\.lobby_url \}\}/);
-  assert.match(deployWorkflow, /\$LOBBY_BASE_URL\/healthz/);
-  assert.match(deployWorkflow, /\$LOBBY_BASE_URL\/protocol/);
-  assert.doesNotMatch(deployWorkflow, /LOBBY_BASE_URL: https:\/\//);
-  assert.doesNotMatch(deployWorkflow, /LOBBY_NAME/);
+  assert.match(deployStaticSiteAction, /terragrunt stack generate --non-interactive/);
+  assert.match(deployStaticSiteAction, /terragrunt stack run init --non-interactive/);
+  assert.match(deployWorkflow, /lobby-url: \$\{\{ steps\.lobby\.outputs\.lobby-url \}\}/);
+  assert.match(deployStaticSiteAction, /LOBBY_BASE_URL: \$\{\{ inputs\.lobby-url \}\}/);
+  assert.match(deployStaticSiteAction, /\$LOBBY_BASE_URL\/healthz/);
+  assert.match(deployStaticSiteAction, /\$LOBBY_BASE_URL\/protocol/);
+  assert.doesNotMatch(deploymentAutomation, /LOBBY_BASE_URL: https:\/\//);
+  assert.doesNotMatch(deploymentAutomation, /LOBBY_NAME/);
 });
 
 test('terraform plan workflow uses explicit matrix and sticky artifact-backed comments', () => {

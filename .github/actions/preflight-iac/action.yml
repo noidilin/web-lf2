@@ -1,0 +1,30 @@
+name: Preflight IaC
+description: Run Terragrunt and Terraform formatting, validation, and planning checks.
+inputs:
+  infra-dir:
+    description: Terragrunt live directory to validate and plan.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Terragrunt format check
+      shell: bash
+      run: terragrunt hcl format --check --diff --working-dir infra
+
+    - name: Terraform module format check
+      shell: bash
+      run: terraform fmt -check -diff -recursive infra/catalog/modules
+
+    - name: Terragrunt validate
+      shell: bash
+      working-directory: ${{ inputs.infra-dir }}
+      run: |
+        terragrunt stack run validate --non-interactive --tf-forward-stdout \
+          --queue-exclude-dir '.terragrunt-stack/deployment-identity'
+
+    - name: Terragrunt plan
+      shell: bash
+      working-directory: ${{ inputs.infra-dir }}
+      run: |
+        terragrunt stack run plan --non-interactive --tf-forward-stdout \
+          --queue-exclude-dir '.terragrunt-stack/deployment-identity'
