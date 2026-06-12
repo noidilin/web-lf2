@@ -35,7 +35,7 @@ runs:
       shell: bash
       env:
         LOBBY_BASE_URL: ${{ inputs.lobby-url }}
-      run: npm run build:static
+      run: pnpm run build:static
 
     - name: Terragrunt apply static site
       shell: bash
@@ -111,4 +111,4 @@ runs:
       env:
         PLAYWRIGHT_BASE_URL: ${{ steps.static_outputs.outputs.game_url }}
         LOBBY_BASE_URL: ${{ inputs.lobby-url }}
-      run: npx playwright test --config playwright.deployed.config.mjs
+      run: pnpm exec playwright test --config playwright.deployed.config.mjs

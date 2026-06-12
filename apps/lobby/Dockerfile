@@ -6,7 +6,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev \
+RUN npm ci --omit=dev --ignore-scripts \
     && npm cache clean --force
 
 FROM runtime-deps AS test

@@ -1,2 +1,12 @@
 packages:
   - apps/lobby
+
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+trustLockfile: false
+verifyDepsBeforeRun: error
+enableGlobalVirtualStore: false
+allowBuilds:
+  ws: false

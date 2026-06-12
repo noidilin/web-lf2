@@ -1,13 +1,14 @@
 {
   "name": "web-lf2",
   "private": true,
+  "packageManager": "pnpm@11.5.3",
   "type": "module",
   "scripts": {
     "build:static": "node scripts/build-static.mjs",
     "check:static": "node scripts/check-static.mjs",
-    "typecheck": "npm run check:static",
+    "typecheck": "pnpm run check:static",
     "test": "node --test tests/*.test.mjs",
-    "pretest:e2e": "npm run build:static",
+    "pretest:e2e": "pnpm run build:static",
     "test:e2e": "playwright test",
     "test:lobby:image": "docker build --target test apps/lobby",
     "test:lobby": "docker compose up -d lobby && node --test tests/lobby-contract.test.mjs"

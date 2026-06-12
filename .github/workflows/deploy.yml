@@ -62,7 +62,7 @@ jobs:
       plan_role_arn: ${{ steps.resolve.outputs.plan-role-arn }}
       apply_role_arn: ${{ steps.resolve.outputs.apply-role-arn }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -83,7 +83,7 @@ jobs:
       INFRA_DIR: ${{ needs.resolve-environment.outputs.infra_dir }}
       LOBBY_IMAGE_TAG: sha-${{ github.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -94,12 +94,12 @@ jobs:
 
       - name: Run app and workflow checks
         run: |
-          npm run build:static
-          npm run check:static
+          pnpm run build:static
+          pnpm run check:static
           node --test tests/build-static.test.mjs tests/check-static.test.mjs tests/deploy-workflow.test.mjs tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs tests/observability.test.mjs
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ needs.resolve-environment.outputs.plan_role_arn }}
           aws-region: ${{ env.AWS_REGION }}
@@ -127,7 +127,7 @@ jobs:
       TARGET_ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
       LOBBY_IMAGE_TAG: ${{ needs.resolve-environment.outputs.environment == 'prod' && github.event_name == 'workflow_dispatch' && inputs.lobby_image_tag || format('sha-{0}', github.sha) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
@@ -137,10 +137,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ needs.resolve-environment.outputs.apply_role_arn }}
           aws-region: ${{ env.AWS_REGION }}
