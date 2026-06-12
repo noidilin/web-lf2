@@ -38,9 +38,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set plan file path
-        run: echo "PLAN_FILE=$RUNNER_TEMP/${{ matrix.environment }}-plan.txt" >> "$GITHUB_ENV"
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
@@ -70,13 +67,13 @@ jobs:
           set -o pipefail
           terragrunt stack run plan --non-interactive --tf-forward-stdout \
             --queue-exclude-dir '.terragrunt-stack/deployment-identity' \
-            | tee "$PLAN_FILE"
+            | tee plan.txt
 
       - name: Upload plan artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ matrix.environment }}-terraform-plan
-          path: ${{ env.PLAN_FILE }}
+          path: ${{ matrix.infra_dir }}/plan.txt
           if-no-files-found: error
 
       - name: Update sticky PR plan comment
@@ -84,7 +81,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           ENVIRONMENT: ${{ matrix.environment }}
-          PLAN_FILE: ${{ env.PLAN_FILE }}
+          PLAN_FILE: ${{ matrix.infra_dir }}/plan.txt
           PLAN_STATUS: ${{ steps.plan.outcome }}
           COMMIT_SHA: ${{ github.sha }}
         with:
