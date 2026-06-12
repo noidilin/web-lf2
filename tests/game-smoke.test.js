@@ -4,6 +4,7 @@ import { test, expect } from 'playwright/test';
 const KNOWN_NOISE = [
   /Cross-Origin .* blocked/i,
   /Loading failed for the .* script/i,
+  /Failed to load resource: net::ERR_NETWORK_CHANGED/i,
 ];
 
 test.describe('game smoke baseline', () => {

@@ -196,7 +196,7 @@ test('terraform plan workflow uses explicit matrix and sticky artifact-backed co
   assert.match(terraformPlanWorkflow, /matrix:[\s\S]+include:[\s\S]+environment: dev[\s\S]+infra_dir: infra\/live\/dev[\s\S]+devops-web-lf2-dev-github-plan/);
   assert.match(terraformPlanWorkflow, /environment: prod[\s\S]+infra_dir: infra\/live\/prod[\s\S]+devops-web-lf2-prod-github-plan/);
   assert.match(terraformPlanWorkflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
-  assert.match(terraformPlanWorkflow, /PLAN_FILE: \$\{\{ runner\.temp \}\}\/\$\{\{ matrix\.environment \}\}-plan\.txt/);
+  assert.match(terraformPlanWorkflow, /echo "PLAN_FILE=\$RUNNER_TEMP\/\$\{\{ matrix\.environment \}\}-plan\.txt" >> "\$GITHUB_ENV"/);
   assert.match(terraformPlanWorkflow, /name: \$\{\{ matrix\.environment \}\}-terraform-plan/);
   assert.match(terraformPlanWorkflow, /web-lf2-terraform-plan:\$\{process\.env\.ENVIRONMENT\}/);
   assert.match(terraformPlanWorkflow, /updateComment/);
