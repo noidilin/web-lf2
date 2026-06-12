@@ -9,7 +9,7 @@ const deploymentIdentityMain = await readFile(new URL('../infra/catalog/modules/
 const lobbyUnit = await readFile(new URL('../infra/catalog/units/lobby-service/terragrunt.hcl', import.meta.url), 'utf8');
 const devStack = await readFile(new URL('../infra/live/dev/terragrunt.stack.hcl', import.meta.url), 'utf8');
 const prodStack = await readFile(new URL('../infra/live/prod/terragrunt.stack.hcl', import.meta.url), 'utf8');
-const deployWorkflow = await readFile(new URL('../.github/workflows/deploy-lobby-dev.yml', import.meta.url), 'utf8');
+const deployWorkflow = await readFile(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
 
 test('lobby infrastructure exposes F.Lobby through ECS Fargate behind HTTPS ALB', () => {
   assert.match(lobbyBootstrapMain, /aws_ecr_repository"\s+"lobby"/);
@@ -62,8 +62,14 @@ test('lobby module consumes networking outputs instead of public task networking
   assert.match(lobbyVars, /variable "vpc_id"/);
   assert.match(lobbyVars, /nullable\s+=\s+false/);
   assert.match(lobbyVars, /variable "image_tag"/);
+  assert.match(lobbyVars, /nullable\s+=\s+true/);
+  assert.match(lobbyVars, /default\s+=\s+null/);
+  assert.match(lobbyVars, /var\.image_tag == null/);
   assert.match(lobbyVars, /\^sha-\[0-9a-f\]\{40\}\$/);
-  assert.match(lobbyVars, /var\.image_tag != "sha-0{40}"/);
+  assert.match(lobbyMain, /zero_sha_image_tag\s+=\s+"sha-0{40}"/);
+  assert.match(lobbyMain, /selected_image_tag\s+=\s+coalesce\(var\.image_tag, local\.zero_sha_image_tag\)/);
+  assert.match(lobbyMain, /image\s+=\s+"\$\{var\.ecr_repository_url\}:\$\{local\.selected_image_tag\}"/);
+  assert.match(lobbyMain, /local\.selected_image_tag != local\.zero_sha_image_tag/);
   assert.doesNotMatch(lobbyVars, /default\s+=\s+"latest"/);
   for (const stack of [devStack, prodStack]) {
     assert.match(stack, /lobby_image_tag\s+=\s+get_env\("LOBBY_IMAGE_TAG", "sha-0{40}"\)/);
@@ -79,18 +85,18 @@ test('lobby module consumes networking outputs instead of public task networking
   assert.match(lobbyUnit, /public_subnet_ids\s+=\s+dependency\.networking\.outputs\.public_subnet_ids/);
 });
 
-test('deploy lobby workflow builds, pushes, rolls out, and checks the deployed contract', () => {
-  assert.match(deployWorkflow, /name: Deploy Lobby Dev/);
+test('deploy workflow builds, pushes, rolls out, and checks the deployed lobby contract', () => {
+  assert.match(deployWorkflow, /name: Deploy/);
   assert.match(deployWorkflow, /lobby-bootstrap/);
   assert.doesNotMatch(deployWorkflow, /-target=aws_ecr_repository\.lobby/);
-  assert.match(deployWorkflow, /LOBBY_IMAGE_TAG:\s+sha-\$\{\{ github\.sha \}\}/);
-  assert.match(deployWorkflow, /docker build/);
+  assert.match(deployWorkflow, /format\('sha-\{0\}', github\.sha\)/);
+  assert.match(deployWorkflow, /if: env\.TARGET_ENVIRONMENT == 'dev'[\s\S]+docker build/);
   assert.match(deployWorkflow, /:\$\{\{ env\.LOBBY_IMAGE_TAG \}\}/);
   assert.match(deployWorkflow, /aws ecr get-login-password/);
   assert.match(deployWorkflow, /aws ecr describe-images/);
   assert.match(deployWorkflow, /docker push/);
   assert.match(deployWorkflow, /aws ecr batch-get-image/);
-  assert.match(deployWorkflow, /aws ecr put-image[\s\S]+--image-tag dev/);
+  assert.match(deployWorkflow, /aws ecr put-image[\s\S]+--image-tag "\$\{TARGET_ENVIRONMENT\}"/);
   assert.match(deployWorkflow, /terragrunt stack run apply/);
   assert.doesNotMatch(deployWorkflow, /:latest/);
   assert.doesNotMatch(deployWorkflow, /aws ecs update-service/);

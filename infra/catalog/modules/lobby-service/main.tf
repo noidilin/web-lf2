@@ -3,6 +3,8 @@ locals {
   container_name               = "lobby"
   container_port               = 8001
   runtime_permissions_boundary = "arn:aws:iam::${var.account_id}:policy/lab-devops-permissions-boundary"
+  zero_sha_image_tag           = "sha-0000000000000000000000000000000000000000"
+  selected_image_tag           = coalesce(var.image_tag, local.zero_sha_image_tag)
 
   common_tags = {
     Project     = var.project
@@ -212,7 +214,7 @@ resource "aws_ecs_task_definition" "lobby" {
   container_definitions = jsonencode([
     {
       name      = local.container_name
-      image     = "${var.ecr_repository_url}:${var.image_tag}"
+      image     = "${var.ecr_repository_url}:${local.selected_image_tag}"
       essential = true
       portMappings = [
         {
@@ -249,6 +251,14 @@ resource "aws_ecs_task_definition" "lobby" {
   tags = local.common_tags
 
   lifecycle {
+    precondition {
+      condition = (
+        can(regex("^sha-[0-9a-f]{40}$", local.selected_image_tag))
+        && local.selected_image_tag != local.zero_sha_image_tag
+      )
+      error_message = "image_tag must use a real canonical sha-<40 character lowercase git SHA> tag, not the zero-SHA sentinel."
+    }
+
     precondition {
       condition     = contains(local.fargate_cpu_memory[tostring(var.task_cpu)], var.task_memory)
       error_message = "task_memory must be a valid AWS Fargate memory value for task_cpu."

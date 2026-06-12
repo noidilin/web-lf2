@@ -15,11 +15,15 @@ test('Phase 2 runbook covers deployment validation and planning', () => {
 
 test('Phase 2 runbook covers dev and prod deployments', () => {
   assert.match(runbook, /## Deploy dev/);
-  assert.match(runbook, /\.github\/workflows\/deploy-dev\.yml/);
+  assert.match(runbook, /\.github\/workflows\/deploy\.yml/);
+  assert.match(runbook, /preflight checks with the plan role/);
+  assert.match(runbook, /choose `dev`/);
   assert.match(runbook, /## Deploy prod/);
-  assert.match(runbook, /\.github\/workflows\/deploy-prod\.yml/);
-  assert.match(runbook, /Deploy Lobby Prod/);
-  assert.match(runbook, /Deploy Static Site Prod/);
+  assert.match(runbook, /selecting `prod`/);
+  assert.match(runbook, /GitHub `prod` environment/);
+  assert.match(runbook, /lobby, static, and observability/);
+  assert.doesNotMatch(runbook, /Deploy Lobby Prod/);
+  assert.doesNotMatch(runbook, /Deploy Static Site Prod/);
 });
 
 test('Phase 2 runbook explains build once, promote many release provenance', () => {
