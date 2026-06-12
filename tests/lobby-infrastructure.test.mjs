@@ -69,7 +69,8 @@ test('lobby module consumes networking outputs instead of public task networking
   assert.match(lobbyMain, /zero_sha_image_tag\s+=\s+"sha-0{40}"/);
   assert.match(lobbyMain, /selected_image_tag\s+=\s+coalesce\(var\.image_tag, local\.zero_sha_image_tag\)/);
   assert.match(lobbyMain, /image\s+=\s+"\$\{var\.ecr_repository_url\}:\$\{local\.selected_image_tag\}"/);
-  assert.match(lobbyMain, /local\.selected_image_tag != local\.zero_sha_image_tag/);
+  assert.match(lobbyMain, /condition\s+=\s+can\(regex\("\^sha-\[0-9a-f\]\{40\}\$", local\.selected_image_tag\)\)/);
+  assert.doesNotMatch(lobbyMain, /local\.selected_image_tag != local\.zero_sha_image_tag/);
   assert.doesNotMatch(lobbyVars, /default\s+=\s+"latest"/);
   for (const stack of [devStack, prodStack]) {
     assert.match(stack, /lobby_image_tag\s+=\s+get_env\("LOBBY_IMAGE_TAG", "sha-0{40}"\)/);

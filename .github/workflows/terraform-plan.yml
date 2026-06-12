@@ -52,7 +52,7 @@ jobs:
         run: terragrunt hcl format --check --diff --working-dir infra
 
       - name: Terraform format check
-        run: find infra/catalog/modules -name "*.tf" -exec terraform fmt -check -diff {} \;
+        run: terraform fmt -check -diff -recursive infra/catalog/modules
 
       - name: Terragrunt validate
         working-directory: ${{ matrix.infra_dir }}
