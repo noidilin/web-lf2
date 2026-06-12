@@ -22,7 +22,7 @@ remote_state {
 dependency "networking" {
   config_path = "../networking"
 
-  mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "destroy"]
   mock_outputs = {
     vpc_id                = "vpc-00000000000000000"
     public_subnet_ids     = ["subnet-00000000000000001", "subnet-00000000000000002"]
@@ -35,7 +35,7 @@ dependency "networking" {
 dependency "lobby_bootstrap" {
   config_path = "../lobby-bootstrap"
 
-  mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "destroy"]
   mock_outputs = {
     ecr_repository_url = "549475122024.dkr.ecr.ap-northeast-1.amazonaws.com/devops-web-lf2-dev-lobby"
   }
