@@ -5,6 +5,8 @@ import { test } from 'node:test';
 
 const ciWorkflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const rootPackage = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+const pnpmWorkspace = await readFile(new URL('../pnpm-workspace.yaml', import.meta.url), 'utf8');
+const pnpmLockfile = await readFile(new URL('../pnpm-lock.yaml', import.meta.url), 'utf8');
 const lobbyPackage = await readFile(new URL('../apps/lobby/package.json', import.meta.url), 'utf8');
 const lobbyDockerfile = await readFile(new URL('../apps/lobby/Dockerfile', import.meta.url), 'utf8');
 const lobbyDockerSmokeScript = await readFile(new URL('../apps/lobby/scripts/docker-smoke.mjs', import.meta.url), 'utf8');
@@ -78,6 +80,7 @@ test('deploy workflow is the environment-parameterized deployment entrypoint', (
   assert.match(deployWorkflow, /id-token: write/);
   assert.match(deployWorkflow, /contents: read/);
   assert.match(deployWorkflow, /\.github\/workflows\/deploy\.yml/);
+  assert.match(deployWorkflow, /pnpm-workspace\.yaml/);
   assert.doesNotMatch(deployWorkflow, /deploy-lobby-(?:dev|prod)\.yml/);
   assert.doesNotMatch(deployWorkflow, /orchestrated/);
 });
@@ -90,7 +93,9 @@ test('resolve-environment maps dev and prod explicitly', () => {
   assert.match(deployWorkflow, /Unsupported deployment environment/);
 });
 
-test('preflight uses plan role and runs app plus IaC checks before deploy', () => {
+test('preflight installs lobby workspace dependencies for app checks before deploy', () => {
+  assert.match(pnpmWorkspace, /packages:\n\s+- apps\/lobby/);
+  assert.match(pnpmLockfile, /apps\/lobby:[\s\S]+ws:[\s\S]+specifier: ~0\.4\.25/);
   assert.match(deployWorkflow, /preflight:[\s\S]+needs: resolve-environment/);
   assert.match(deployWorkflow, /role-to-assume: \$\{\{ needs\.resolve-environment\.outputs\.plan_role_arn \}\}/);
   assert.match(deployWorkflow, /pnpm install --frozen-lockfile/);
