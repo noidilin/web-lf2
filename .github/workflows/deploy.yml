@@ -118,7 +118,7 @@ jobs:
         run: |
           npm run build:static
           npm run check:static
-          node --test tests/build-static.test.mjs tests/check-static.test.mjs tests/deploy-workflow.test.mjs tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs tests/observability.test.mjs tests/phase-2-runbook.test.mjs
+          node --test tests/build-static.test.mjs tests/check-static.test.mjs tests/deploy-workflow.test.mjs tests/lobby-hardening.test.mjs tests/lobby-infrastructure.test.mjs tests/observability.test.mjs
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6

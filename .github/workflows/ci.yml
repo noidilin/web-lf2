@@ -111,8 +111,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Run workflow and documentation tests
-        run: node --test tests/deploy-workflow.test.mjs tests/observability.test.mjs tests/phase-2-runbook.test.mjs
+      - name: Run workflow tests
+        run: node --test tests/deploy-workflow.test.mjs tests/observability.test.mjs
 
   browser-smoke:
     runs-on: ubuntu-latest

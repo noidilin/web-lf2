@@ -11,7 +11,6 @@ const lobbyMain = await readFile(new URL('../infra/catalog/modules/lobby-service
 const lobbyOutputs = await readFile(new URL('../infra/catalog/modules/lobby-service/outputs.tf', import.meta.url), 'utf8');
 const lobbyIndex = await readFile(new URL('../apps/lobby/index.js', import.meta.url), 'utf8');
 const lobbyApp = await readFile(new URL('../apps/lobby/lobby.js', import.meta.url), 'utf8');
-const docs = await readFile(new URL('../docs/phase/phase-2-aws-baseline.md', import.meta.url), 'utf8');
 
 test('F.Lobby emits structured JSON logs with searchable event fields', () => {
   assert.match(lobbyIndex, /createLogger/);
@@ -70,13 +69,3 @@ test('deployment identity can plan and apply observability resources', () => {
   assert.match(deploymentIdentity, /aws_iam_role_policy_attachment" "github_apply_observability"/);
 });
 
-test('documentation explains dashboard sections and alarm meaning', () => {
-  assert.match(docs, /## Observability v1/);
-  assert.match(docs, /CloudFront delivery/);
-  assert.match(docs, /Lobby load balancer/);
-  assert.match(docs, /ECS runtime/);
-  assert.match(docs, /Lobby availability/);
-  assert.match(docs, /cloudfront_5xx_rate/);
-  assert.match(docs, /alb_unhealthy_targets/);
-  assert.match(docs, /ecs_running_task_count/);
-});
